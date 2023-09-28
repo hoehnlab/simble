@@ -1,0 +1,31 @@
+[build-system]
+requires = ["setuptools>=64", "setuptools_scm>=8"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "simble"
+# version = "0.0.1"
+dynamic = ["version"]
+authors = [
+  { name="Jessie Fielding", email="jessiejofielding@gmail.com" },
+]
+classifiers = [
+    "Programming Language :: Python :: 3",
+    "License :: OSI Approved :: GNU Affero General Public License v3",
+    "Operating System :: OS Independent",
+]
+readme = "README.md"
+dependencies = [
+    "numpy>=1.17.0",
+    "pandas",
+    "matplotlib",
+]
+
+[project.scripts]
+simble = "simble.__main__:main"
+
+[project.urls]
+Homepage = "https://github.com/hoehnlab/simble"
+Issues = "https://github.com/hoehnlab/simble/issues"
+
+[tool.setuptools_scm]

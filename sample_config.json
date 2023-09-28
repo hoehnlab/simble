@@ -1,0 +1,44 @@
+{
+    "LOCATIONS": [
+        {
+            "name": {
+                "__enum__": "LocationName.GC"
+            },
+            "sample_times": [
+                0,
+                25,
+                50
+            ],
+            "mutation_rate": 1.0,
+            "max_population": 1000,
+            "migration_rate": 0,
+            "sample_size": 50
+        },
+        {
+            "name": {
+                "__enum__": "LocationName.OTHER"
+            },
+            "sample_times": [
+                0
+            ],
+            "mutation_rate": 0.0,
+            "max_population": 1000,
+            "migration_rate": 0,
+            "sample_size": 12
+        }
+    ],
+    "HEAVY_MUTATE_PROBABILITY": 0.33,
+    "LIGHT_MUTATE_PROBABILITY": 0.15,
+    "TARGET_MUTATIONS_HEAVY": 5,
+    "TARGET_MUTATIONS_LIGHT": 2,
+    "SELECTION": true,
+    "RESULTS_DIR": "/home/sample_config_results",
+    "MULTIPLIER": 2,
+    "DEV": false,
+    "FASTA": false,
+    "VERBOSE": false,
+    "CDR_DIST": "exponential",
+    "CDR_VAR": 0.995,
+    "FWR_DIST": "constant",
+    "FWR_VAR": 2
+}

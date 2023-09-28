@@ -1,0 +1,283 @@
+"""
+ Copyright (C) 2024 Jessie Fielding
+
+ This file is part of simble.
+
+ simble is free software: you can redistribute it and/or modify
+ it under the terms of the GNU Affero General Public License as
+ published by the Free Software Foundation, either version 3 of the
+ License, or (at your option) any later version.
+
+ simble is distributed in the hope that it will be useful,
+ but WITHOUT ANY WARRANTY; without even the implied warranty of
+ MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ GNU Affero General Public License for more details.
+
+ You should have received a copy of the GNU Affero General Public License
+ along with simble.  If not, see <https://www.gnu.org/licenses/>.
+ """
+
+import argparse
+import json
+import os
+
+from .location import as_enum
+from .settings import s
+
+
+def get_parser():
+    # TODO(jf): reorder arguments, rename as needed
+    parser = argparse.ArgumentParser(
+        prog="simble",
+        formatter_class=argparse.RawDescriptionHelpFormatter,
+        description="somewhat improved model of B-cell lineage evolution \n\nsource code available at: www.github.com/hoehnlab/simble",
+        epilog="It's that simble!"
+        )
+    program = parser.add_argument_group(
+        "program-level settings", 
+        description="e.g. output directory or verbosity"
+        )
+
+    model = parser.add_argument_group(
+        "simulation model settings", 
+        description="e.g. mutation probabilities or whether to run neutral simulation"
+        )
+    
+    sampling = parser.add_argument_group("sampling settings")
+
+    program.add_argument("-v", "--verbose", 
+                         dest="verbose", 
+                         help="verbose output", 
+                         action="store_true")
+    program.add_argument("-o", "--output", 
+                         dest="results", 
+                         help="absolute path to output directory", 
+                         metavar="DIR", 
+                         type=str)
+    program.add_argument("-n", "--num", 
+                         dest="n", 
+                         help="number of simulations to run", 
+                         type=int, 
+                         default=1)
+    program.add_argument("-p", "--processes", 
+                         dest="processes", 
+                         metavar="P", 
+                         help="number of processes to run", 
+                         type=int, 
+                         default=1)
+    program.add_argument("--dev", 
+                         dest="dev", 
+                         help="development mode", 
+                         action="store_true")
+    program.add_argument("--fasta", 
+                         dest="fasta", 
+                         help="output as fasta", 
+                         action="store_true")
+    program.add_argument("--config", 
+                         dest="config",
+                         help="untested! path to config file, will be overwritten by command line arguments",
+                         metavar="FILE",
+                         type=str,
+                         default=None)
+    program.add_argument("--seeds", 
+                         dest="seeds",
+                         help="list of seeds to seed the random number generators",
+                         nargs="*",
+                         type=int,
+                         default=None)
+
+    sampling.add_argument("-s", "--samples", 
+                          dest="sample_info", 
+                          metavar=("start", "stop", "step"), 
+                          help="specify sample times other than the default", 
+                          nargs=3, 
+                          default=None, 
+                          type=int)
+    sampling.add_argument("--other-samples", 
+                          dest="other_sample_info", 
+                          metavar=("start", "stop", "step"), 
+                          help="specify sample times for only the 'Other' location", 
+                          nargs=3, 
+                          default=None)
+
+    model.add_argument("--neutral", 
+                       dest="neutral", 
+                       help="neutral simulation (no selection in germinal center)", 
+                       action="store_true")
+    model.add_argument("-m", "--multiplier", 
+                       dest="multiplier", 
+                       help="selection multiplier", 
+                       metavar="M", 
+                       default=None, 
+                       type=int)
+    model.add_argument("--migration-rate", 
+                       dest="migration_rate", 
+                       help="migration rate from the GC (expected value of cells that migrate per generation)", 
+                       metavar="R", 
+                       default=None, 
+                       type=float)
+    model.add_argument("--heavy-mutate-probability", 
+                       dest="heavy_mutate_probability", 
+                       help="probability of heavy chain mutation", 
+                       metavar="P", 
+                       default=None, 
+                       type=float)
+    model.add_argument("--light-mutate-probability", 
+                       dest="light_mutate_probability", 
+                       help="probability of light chain mutation", 
+                       metavar="P", 
+                       default=None, 
+                       type=float)
+    model.add_argument("--target-mutations-heavy", 
+                       dest="target_mutations_heavy", 
+                       help="number of mutations in heavy chain target", 
+                       metavar="N", 
+                       default=None, 
+                       type=int)
+    model.add_argument("--target-mutations-light", 
+                       dest="target_mutations_light", 
+                       help="number of mutations in light chain target", 
+                       metavar="N", 
+                       default=None, 
+                       type=int)
+    model.add_argument("--cdr-dist", 
+                       dest="cdr_dist", 
+                       help="cdr distribution", 
+                       default=None,
+                       choices=["constant", "exponential"], 
+                       type=str)
+    model.add_argument("--cdr-var", 
+                       dest="cdr_var", 
+                       help="cdr variable", 
+                       metavar="V", 
+                       default=None, 
+                       type=float)
+    model.add_argument("--fwr-dist", 
+                       dest="fwr_dist", 
+                       help="fwr distribution", 
+                       default=None,
+                       choices=["constant", "exponential"], 
+                       type=str)
+    model.add_argument("--fwr-var", 
+                       dest="fwr_var", 
+                       help="fwr variable", 
+                       metavar="V", 
+                       default=None, 
+                       type=float) 
+
+    return parser
+
+def _update_setting(name, value):
+    if value is not None:
+        setattr(s, name, value)
+
+def validate_samples(sample_info):
+    if sample_info[0] > sample_info[1]:
+        raise ValueError("sample start must be less than or equal to stop")
+    if sample_info[2] <= 0:
+        raise ValueError("sample step must be greater than 0")
+    if sample_info[2] > sample_info[1] - sample_info[0]:
+        raise ValueError("sample step must be less than or equal to stop - start")
+
+def validate_and_process_args(args):
+    warnings = []
+    if args.config is not None:
+        # TODO(jf): validate that file exists
+        warnings.append("Using a config file is not fully tested. Use at your own risk!")
+        data = read_from_json(args.config)
+        s.update_from_dict(data)
+
+    if args.seeds:
+        if len(args.seeds) != args.n:
+            if len(args.seeds) < args.n:
+                raise ValueError("Number of seeds must be equal to number of simulations")
+            warnings.append("Number of seeds does not match number of simulations, ignoring extra seeds")
+
+    if args.results is not None:
+        s.RESULTS_DIR = args.results
+    elif s.RESULTS_DIR == "":
+        s.RESULTS_DIR = os.getcwd() + "/results"
+
+    if not os.path.exists(s.RESULTS_DIR):
+        os.mkdir(s.RESULTS_DIR)
+
+    if args.neutral:
+        if args.multiplier is not None:
+            warnings.append("Neutral simulation specified, ignoring selection multiplier")
+        s.SELECTION = False
+
+    if args.sample_info:
+        validate_samples(args.sample_info)
+        start = args.sample_info[0]
+        stop = args.sample_info[1]
+        step = args.sample_info[2]
+        for location in s.LOCATIONS:
+            location.sample_times = list(range(start, stop+1, step))
+    if args.other_sample_info is not None:
+        validate_samples(args.other_sample_info)
+        start = args.other_sample_info[0]
+        stop = args.other_sample_info[1]
+        step = args.other_sample_info[2]
+        s.LOCATIONS[1].sample_times = list(range(start, stop+1, step))
+
+    if args.migration_rate:
+        s.LOCATIONS[0].migration_rate = args.migration_rate
+
+    _update_setting("MULTIPLIER", args.multiplier)
+    _update_setting("HEAVY_MUTATE_PROBABILITY", args.heavy_mutate_probability)
+    _update_setting("LIGHT_MUTATE_PROBABILITY", args.light_mutate_probability)
+    _update_setting("TARGET_MUTATIONS_HEAVY", args.target_mutations_heavy)
+    _update_setting("TARGET_MUTATIONS_LIGHT", args.target_mutations_light)
+    _update_setting("DEV", args.dev)
+    _update_setting("FASTA", args.fasta)
+    _update_setting("CDR_DIST", args.cdr_dist)
+    _update_setting("CDR_VAR", args.cdr_var)
+    _update_setting("FWR_DIST", args.fwr_dist)
+    _update_setting("FWR_VAR", args.fwr_var)
+
+    if s.LOCATIONS[1].sample_times is None:
+        # if no sample times are specified for the "Other" location, use the same as the GC
+        s.LOCATIONS[1].sample_times = s.LOCATIONS[0].sample_times
+
+    return warnings
+
+
+def validate_location(location):
+    valid_fields = {x: type(y) for x, y in vars(s.LOCATIONS[0]).items() if not x.startswith("_")}
+    for key, value in location.items():
+        if key not in valid_fields:
+            raise ValueError(f"invalid LOCATION field: {key}")
+        if type(value) != valid_fields[key]:
+            raise ValueError(f"invalid type for LOCATION field {key}: {type(value)}")
+        
+        
+def validate_json(json):
+    valid_fields = {x: type(y) for x, y in vars(s).items() if not x.startswith("_")}
+    for key, value in json.items():
+        if key == "LOCATIONS":
+            for location in value:
+                validate_location(location)
+        if key not in valid_fields:
+            raise ValueError(f"invalid field: {key}")
+        valid_type = valid_fields[key]
+        if valid_type == int:
+            # float is fine if it's actually an integer
+            if type(value) == float and value.is_integer():
+                continue
+            if type(value) != valid_type:
+                raise ValueError(f"invalid type for field {key}: {type(value)}")
+        elif valid_type == float:
+            # integer is fine for floats
+            if type(value) != valid_type and type(value) != int:
+                raise ValueError(f"invalid type for field {key}: {type(value)}")    
+        elif type(value) != valid_type:
+            raise ValueError(f"invalid type for field {key}: {type(value)}")
+        if key == "CDR_DIST" or key == "FWR_DIST":
+            if value not in ["constant", "exponential"]:
+                raise ValueError(f"invalid value for field {key}: {value}")
+
+def read_from_json(filename):
+    with open(filename, "r") as f:
+        data = json.load(f, object_hook=as_enum)
+    validate_json(data)
+    return data
