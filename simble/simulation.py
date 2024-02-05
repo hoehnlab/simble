@@ -35,10 +35,10 @@ logger = logging.getLogger(__package__)
 
 def get_population_data(location, time):
     population = len(location.current_generation)
+
     children_counter = Counter(location.number_of_children)
-    get_more_than = lambda x, y: sum([v for k, v in x.items() if k > y])
     children_dict = {
-        f"number_of_cells_with_more_than_{i}_children": get_more_than(children_counter, i) 
+        f"number_of_cells_with_{i}_children": children_counter[i] 
         for i in range(1, 10)
         }
     pop_data = {
@@ -150,7 +150,7 @@ def run_simulation(i, result_dir):
                     )
                 current_node.antigen += 1
 
-        location.number_of_children = [x.antigen for x in current_generation]
+        location.number_of_children = [min(x.antigen, 10) for x in current_generation]
         for node in current_generation:
             node.cell.kill_cell()
             children = [make_new_child(node) for _ in range(min(node.antigen, 10))]
