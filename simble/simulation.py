@@ -116,7 +116,7 @@ def run_simulation(i, result_dir):
             #randomly select cells to reproduce
             to_divide = s._RNG.choice(
                 current_generation, 
-                size=cells_to_reproduce, 
+                size=min(cells_to_reproduce, len(current_generation)), 
                 replace=False)
             
             not_dividing = [x for x in current_generation if x not in to_divide]
