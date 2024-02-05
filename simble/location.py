@@ -35,13 +35,9 @@ class Location():
     ):
         self.name = name
         self.settings = settings
-        # self.mutation_rate = mutation_rate
-        # self.MAX_POPULATION = max_population
-        # self.migration_rate = migration_rate
         self.current_generation = []
         self.immigrating_population = []
-        self.number_of_reproducing_cells = 0
-        self.number_of_cells_with_more_than_one_child = 0
+        self.number_of_children = []
 
     def finish_migration(self):
         def update_cell(node):

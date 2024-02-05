@@ -17,6 +17,7 @@
  along with simble.  If not, see <https://www.gnu.org/licenses/>.
  """
 
+from collections import Counter
 import logging
 
 import numpy as np
@@ -34,14 +35,21 @@ logger = logging.getLogger(__package__)
 
 def get_population_data(location, time):
     population = len(location.current_generation)
-    return {
+    children_counter = Counter(location.number_of_children)
+    get_more_than = lambda x, y: sum([v for k, v in x.items() if k > y])
+    children_dict = {
+        f"number_of_cells_with_more_than_{i}_children": get_more_than(children_counter, i) 
+        for i in range(1, 10)
+        }
+    pop_data = {
         "time": time,
         "location": location.name.value,
         "population": population,
-        "number_of_reproducing_cells": location.number_of_reproducing_cells,
-        "number_of_cells_with_more_than_one_child": location.number_of_cells_with_more_than_one_child,
+        "number_of_reproducing_cells": population - children_counter[0],
         "average_affinity": np.mean([x.cell.affinity for x in location.current_generation]) if population > 0 else 0,
     }
+    pop_data.update(children_dict)
+    return pop_data
 
     
 def run_simulation(i, result_dir):
@@ -95,35 +103,54 @@ def run_simulation(i, result_dir):
 
 
             for node in to_migrate:
-                # can in the future decide where it will migrate to
                 child_node = Node(node.cell.remake_self(), parent=node, generation=node.generation+1)
                 node.add_child(child_node)
                 OTHER.immigrating_population.append(child_node)
         
         if location.name == LocationName.OTHER:
-            available_antigen = min(
-                location.settings.max_population, 
-                len(current_generation) + int(s._RNG.poisson(0.25))
+            # other location reproduces very slowly
+            # we only want these cells to have 2 children, unlike the GC
+            # get number of cells to reproduce
+            cells_to_reproduce = int(s._RNG.poisson(0.25))
+
+            #randomly select cells to reproduce
+            to_divide = s._RNG.choice(
+                current_generation, 
+                size=cells_to_reproduce, 
+                replace=False)
+            
+            not_dividing = [x for x in current_generation if x not in to_divide]
+            
+            cells_to_live = min(location.settings.max_population - cells_to_reproduce*2, len(not_dividing))
+            to_live = s._RNG.choice(
+                not_dividing,
+                size=cells_to_live,
+                replace=False
                 )
+
+            def update_antigen(x, i):
+                x.antigen = i
+            [update_antigen(x, 1) for x in to_live]
+            [update_antigen(x, 2) for x in to_divide]
+            
         else:
             available_antigen = location.settings.max_population
 
-        if s.SELECTION and location.name == LocationName.GC:
-            affinities = [x.cell.affinity for x in current_generation]
-            p = np.array(affinities) / np.sum(affinities)
-    
-        else:
-            p = None
-            
-        for _ in range(available_antigen):
-            current_node = s._RNG.choice(
-                current_generation,
-                p=p
-                )
-            current_node.antigen += 1
+            if s.SELECTION and location.name == LocationName.GC:
+                affinities = [x.cell.affinity for x in current_generation]
+                p = np.array(affinities) / np.sum(affinities)
+        
+            else:
+                p = None
+                
+            for _ in range(available_antigen):
+                current_node = s._RNG.choice(
+                    current_generation,
+                    p=p
+                    )
+                current_node.antigen += 1
 
-        location.number_of_reproducing_cells = len([x for x in current_generation if x.antigen > 0])
-        location.number_of_cells_with_more_than_one_child = len([x for x in current_generation if x.antigen > 1])
+        location.number_of_children = [x.antigen for x in current_generation]
         for node in current_generation:
             node.cell.kill_cell()
             children = [make_new_child(node) for _ in range(min(node.antigen, 10))]
