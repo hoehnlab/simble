@@ -22,7 +22,7 @@ dependencies = [
 ]
 
 [project.scripts]
-simble = "simble.__main__:main"
+simble = "simble.simble:main"
 
 [project.urls]
 Homepage = "https://github.com/hoehnlab/simble"

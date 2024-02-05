@@ -109,7 +109,6 @@ def main():
     for warning in warnings:
         logger.warning(warning)
 
-    # TODO(jf): verify that this works correctly
     if args.seeds is not None:
         seeds = [np.random.SeedSequence(seed) for seed in args.seeds]
     else:
