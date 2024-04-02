@@ -23,7 +23,7 @@ import logging
 import numpy as np
 import pandas as pd
 
-from .cell import Cell
+from .cell import Cell, CellType
 from .dev_helper import get_data_points
 from .helper import make_all_plots, make_bar_plot
 from .location import Location, LocationName
@@ -51,7 +51,44 @@ def get_population_data(location, time):
     pop_data.update(children_dict)
     return pop_data
 
-    
+def do_differentiation(location, time):
+    current_generation = location.current_generation
+    to_migrate = []
+    if time < s.TIME_SWITCH:
+        mbc_size = int(s._RNG.poisson(location.settings.migration_rate))
+        mbcs = s._RNG.choice(
+            current_generation, 
+            size=mbc_size, 
+            replace=False)
+        current_generation = [x for x in current_generation if x not in mbcs]
+        [mbc.differentiate(CellType.MBC) for mbc in mbcs]
+        to_migrate.extend(mbcs)
+    else:
+        pc_size = int(s._RNG.poisson(location.settings.migration_rate))
+        affinities = [x.cell.affinity for x in current_generation]
+        p = np.array(affinities) / np.sum(affinities)
+        pcs = s._RNG.choice(
+            current_generation, 
+            size=pc_size,
+            p=p,
+            replace=False)
+        current_generation = [x for x in current_generation if x not in pcs]
+        [pc.differentiate(CellType.PC) for pc in pcs]
+        to_migrate.extend(pcs)
+    return to_migrate
+
+def non_gc_population_control(current_generation):
+    # right now the other location will have no reproduction or death
+    # TODO: add a max population
+    # TODO: potentially tweak reproduction 
+    new_generation = []
+    for node in current_generation:
+        child_node = Node(node.cell.remake_self(), parent=node, generation=node.generation+1)
+        node.add_child(child_node)
+        new_generation.append(child_node)
+    return new_generation
+
+
 def run_simulation(i, result_dir):
     dev_data_rows = []
     pop_data_rows = []
@@ -92,63 +129,39 @@ def run_simulation(i, result_dir):
         current_generation = location.current_generation
         if len(current_generation) == 0:
             return []
-        
-        if time >= 25:
-            migrate_size = int(s._RNG.poisson(location.settings.migration_rate))
-            to_migrate = s._RNG.choice(
-                current_generation, 
-                size=migrate_size, 
-                replace=False)
-            current_generation = [x for x in current_generation if x not in to_migrate]
 
+        if location.name == LocationName.GC:
+            to_migrate = do_differentiation(location, time)
+        else:
+            # TODO: potentially allow other locations to migrate in the future
+            to_migrate = []
 
-            for node in to_migrate:
-                child_node = Node(node.cell.remake_self(), parent=node, generation=node.generation+1)
-                node.add_child(child_node)
-                OTHER.immigrating_population.append(child_node)
+        current_generation = [x for x in current_generation if x not in to_migrate]
+
+        for node in to_migrate:
+            child_node = Node(node.cell.remake_self(), parent=node, generation=node.generation+1)
+            node.add_child(child_node)
+            OTHER.immigrating_population.append(child_node)
         
         if location.name == LocationName.OTHER:
-            # other location reproduces very slowly
-            # we only want these cells to have 2 children, unlike the GC
-            # get number of cells to reproduce
-            cells_to_reproduce = int(s._RNG.poisson(0.25))
+            new_generation = non_gc_population_control(current_generation)
+            return new_generation
+            
+        available_antigen = location.settings.max_population
 
-            #randomly select cells to reproduce
-            to_divide = s._RNG.choice(
-                current_generation, 
-                size=min(cells_to_reproduce, len(current_generation)), 
-                replace=False)
-            
-            not_dividing = [x for x in current_generation if x not in to_divide]
-            
-            cells_to_live = min(location.settings.max_population - cells_to_reproduce*2, len(not_dividing))
-            to_live = s._RNG.choice(
-                not_dividing,
-                size=cells_to_live,
-                replace=False
-                )
-
-            def update_antigen(x, i):
-                x.antigen = i
-            [update_antigen(x, 1) for x in to_live]
-            [update_antigen(x, 2) for x in to_divide]
-            
+        if s.SELECTION and location.name == LocationName.GC:
+            affinities = [x.cell.affinity for x in current_generation]
+            p = np.array(affinities) / np.sum(affinities)
+    
         else:
-            available_antigen = location.settings.max_population
-
-            if s.SELECTION and location.name == LocationName.GC:
-                affinities = [x.cell.affinity for x in current_generation]
-                p = np.array(affinities) / np.sum(affinities)
-        
-            else:
-                p = None
-                
-            for _ in range(available_antigen):
-                current_node = s._RNG.choice(
-                    current_generation,
-                    p=p
-                    )
-                current_node.antigen += 1
+            p = None
+            
+        for _ in range(available_antigen):
+            current_node = s._RNG.choice(
+                current_generation,
+                p=p
+                )
+            current_node.antigen += 1
 
         location.number_of_children = [min(x.antigen, 10) for x in current_generation]
         for node in current_generation:

@@ -89,6 +89,7 @@ class Settings(Encodable):
         self.CDR_VAR = 0.995
         self.FWR_DIST = "exponential"
         self.FWR_VAR = 0.85
+        self.TIME_SWITCH = 50
 
     @property
     def END_TIME(self):
