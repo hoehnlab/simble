@@ -230,7 +230,9 @@ class Chain:
 
 
 class HeavyChain(Chain):
-    MUTATE_PROBABILITY = s.HEAVY_MUTATE_PROBABILITY
+    @property
+    def MUTATE_PROBABILITY(self):
+        return s.HEAVY_MUTATE_PROBABILITY
     IS_HEAVY = True
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
@@ -242,7 +244,9 @@ class HeavyChain(Chain):
 
 
 class LightChain(Chain):
-    MUTATE_PROBABILITY = s.LIGHT_MUTATE_PROBABILITY
+    @property
+    def MUTATE_PROBABILITY(self):
+        return s.LIGHT_MUTATE_PROBABILITY
     IS_HEAVY = False
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)

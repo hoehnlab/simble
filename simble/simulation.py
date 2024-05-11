@@ -51,27 +51,20 @@ def get_population_data(location, time):
     pop_data.update(children_dict)
     return pop_data
 
-    
-def run_simulation(i, result_dir):
+def simulate(clone_id, TARGET_PAIR, gc_start_generation, root, time=0):
+    print(s.HEAVY_MUTATE_PROBABILITY)
     dev_data_rows = []
     pop_data_rows = []
-    time = 0
-    clone_id = i+1
-    naive = Cell(None, None, created_at=time)
-    root = Node(naive, clone_id=clone_id)
+    naive = root.cell
     locations = [Location(x.name, x) for x in s.LOCATIONS]
     GC = [x for x in locations if x.name == LocationName.GC][0]
     OTHER = [x for x in locations if x.name == LocationName.OTHER][0]
-    GC.current_generation = [root]
-    fasta_string = naive.as_fasta(time)
+    GC.current_generation = gc_start_generation
+    # fasta_string = naive.as_fasta(time)
     airr = []
     sampled_ids = []
-    TARGET_PAIR = TargetAminoPair(
-        naive.heavy_chain.get_gapped_sequence(), 
-        naive.light_chain.get_gapped_sequence(), 
-        naive.heavy_chain.CDR3_length, 
-        naive.light_chain.CDR3_length)
-    TARGET_PAIR.mutate(s.TARGET_MUTATIONS_HEAVY, s.TARGET_MUTATIONS_LIGHT)
+    sampled = []
+    # TARGET_PAIR.mutate(s.TARGET_MUTATIONS_HEAVY, s.TARGET_MUTATIONS_LIGHT)
 
     def make_new_child(node):
         child_cell = Cell(
@@ -187,15 +180,51 @@ def run_simulation(i, result_dir):
                 if time == 0:
                     # make sure we don't remove the naive cell
                     continue
-                sample_size = min(len(location.current_generation)//2, location.settings.sample_size)
+                if time == s.END_TIME-1:
+                    sample_size = min(len(location.current_generation), location.settings.sample_size)
+                else:
+                    sample_size = min(len(location.current_generation)//2, location.settings.sample_size)
                 current_sample = s._RNG.choice(location.current_generation, size=sample_size, replace=False)
                 location.current_generation = [x for x in location.current_generation if x not in current_sample]
                 for node in current_sample:
                     sampled_ids.append(id(node.cell))
-                    fasta_string += node.cell.as_fasta(time)
+                    node.sampled_time = time
+                    sampled.append(node)
                     airr.extend(node.cell.as_AIRR(time))
 
         time += 1
+
+
+    df = pd.DataFrame(dev_data_rows)
+    pop_data = pd.DataFrame(pop_data_rows)
+    pop_data["clone_id"] = clone_id
+    
+    return sampled, pop_data, df
+
+    
+def run_simulation(i, result_dir):
+    time = 0
+    clone_id = i+1
+    naive = Cell(None, None, created_at=time)
+    root = Node(naive, clone_id=clone_id)
+    airr = []
+    TARGET_PAIR = TargetAminoPair(
+        naive.heavy_chain.get_gapped_sequence(), 
+        naive.light_chain.get_gapped_sequence(), 
+        naive.heavy_chain.CDR3_length, 
+        naive.light_chain.CDR3_length)
+    TARGET_PAIR.mutate(s.TARGET_MUTATIONS_HEAVY, s.TARGET_MUTATIONS_LIGHT)
+
+    sampled, pop_data, dev_df = _run_simulation(clone_id, TARGET_PAIR, [root], root)
+
+    sampled_ids = [id(x.cell) for x in sampled]
+    fasta_string = "".join([x.cell.as_fasta(x.sampled_time) for x in sampled])
+
+    airr = [x for node in sampled for x in node.cell.as_AIRR(node.sampled_time)]
+    airr = pd.DataFrame(airr)
+    airr["sequence_id"] = airr["sequence_id"].apply(lambda x: f"{clone_id}_{x}")
+    airr["cell_id"] = airr["cell_id"].apply(lambda x: f"{clone_id}_{x}")
+    airr["clone_id"] = clone_id
 
     newick = f'({root.write_newick()});'
     pruned = root.prune_subtree(sampled_ids)
@@ -212,21 +241,12 @@ def run_simulation(i, result_dir):
         logger.info("writing pruned newick tree")
         with open(result_dir + "/pruned_tree.tree", "w") as f:
             f.write(pruned_newick)
-
-
-    df = pd.DataFrame(dev_data_rows)
-    pop_data = pd.DataFrame(pop_data_rows)
-    airr = pd.DataFrame(airr)
-    airr["sequence_id"] = airr["sequence_id"].apply(lambda x: f"{clone_id}_{x}")
-    airr["cell_id"] = airr["cell_id"].apply(lambda x: f"{clone_id}_{x}")
-    airr["clone_id"] = clone_id
-    pop_data["clone_id"] = clone_id
     
     if s.DEV:
         logger.info(f"max affinity was: {TARGET_PAIR.max_affinity}")
         logger.info("making plots")
         # make plots
-        make_all_plots(df, result_dir)
+        make_all_plots(dev_df, result_dir)
         make_bar_plot(list(TARGET_PAIR.heavy.cdr_multipliers.values()), result_dir + "/cdr_multiplier.png", "CDR multiplier value", "CDR multiplier distribution")
         make_bar_plot(list(TARGET_PAIR.heavy.fwr_multipliers.values()), result_dir + "/fwr_multiplier.png", "FWR multiplier value", "FWR multiplier distribution")
 
@@ -236,7 +256,7 @@ def run_simulation(i, result_dir):
         "true_tree": newick, 
         "pruned_tree": pruned_newick,
         "pruned_time_tree": pruned_time_tree, 
-        "data": df, 
+        "data": dev_df, 
         "clone_id": clone_id, 
         "pop_data": pop_data
         }
