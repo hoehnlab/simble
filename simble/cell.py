@@ -27,7 +27,8 @@ from .settings import s
 
 class CellType(Enum):
     DEFAULT = "default"
-
+    PC = "Plasma Cell"
+    MBC = "Memory B Cell"
 
 class Cell:
     def __init__(
@@ -86,6 +87,7 @@ class Cell:
             "locus": "IGH" if heavy else "IGL",
             "sample_time": generation,
             "location": self.location.value,
+            "celltype": self.type.value,
         }
         row = "|".join([f"{x}={y}" for x, y in row.items()])
         seq = self.heavy_chain.nucleotide_seq if heavy else self.light_chain.nucleotide_seq
@@ -114,3 +116,6 @@ class Cell:
 
         if not self.heavy_chain.is_functional or not self.light_chain.is_functional:
             self.affinity = 0
+
+    def differentiate(self, cell_type):
+        self.type = cell_type
