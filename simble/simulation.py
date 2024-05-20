@@ -54,17 +54,36 @@ def get_population_data(location, time):
 def do_differentiation(location, time):
     current_generation = location.current_generation
     to_migrate = []
-    if time < s.TIME_SWITCH:
-        mbc_size = int(s._RNG.poisson(location.settings.migration_rate))
+    migrate_size = min(int(s._RNG.poisson(location.settings.migration_rate)), len(current_generation)//2)
+    def get_mbc_pc_size(migrate_size, time):
+        current_day = s.GENERATIONS_PER_DAY*time
+        if current_day < 8:
+            mbc_size = int(migrate_size * 0.99)
+            pc_size = migrate_size - mbc_size
+        elif current_day < 16:
+            days = current_day - 8
+            percentage_mbc = 0.99 - (days * 0.98/8)
+            mbc_size = int(migrate_size * percentage_mbc)
+            pc_size = migrate_size - mbc_size
+        elif current_day < 41:
+            pc_size = int(migrate_size * 0.99)
+            mbc_size = migrate_size - pc_size
+        else:
+            pc_size = migrate_size
+            mbc_size = 0
+        return mbc_size, pc_size
+        
+
+    mbc_size, pc_size = get_mbc_pc_size(migrate_size, time)
+    if mbc_size > 0:
         mbcs = s._RNG.choice(
             current_generation, 
             size=mbc_size, 
             replace=False)
         current_generation = [x for x in current_generation if x not in mbcs]
-        [mbc.differentiate(CellType.MBC) for mbc in mbcs]
+        [mbc.cell.differentiate(CellType.MBC) for mbc in mbcs]
         to_migrate.extend(mbcs)
-    else:
-        pc_size = int(s._RNG.poisson(location.settings.migration_rate))
+    if pc_size > 0:
         affinities = [x.cell.affinity for x in current_generation]
         p = np.array(affinities) / np.sum(affinities)
         pcs = s._RNG.choice(
@@ -73,7 +92,7 @@ def do_differentiation(location, time):
             p=p,
             replace=False)
         current_generation = [x for x in current_generation if x not in pcs]
-        [pc.differentiate(CellType.PC) for pc in pcs]
+        [pc.cell.differentiate(CellType.PC) for pc in pcs]
         to_migrate.extend(pcs)
     return to_migrate
 
@@ -228,7 +247,7 @@ def run_simulation(i, result_dir):
         naive.light_chain.CDR3_length)
     TARGET_PAIR.mutate(s.TARGET_MUTATIONS_HEAVY, s.TARGET_MUTATIONS_LIGHT)
 
-    sampled, pop_data, dev_df = _run_simulation(clone_id, TARGET_PAIR, [root], root)
+    sampled, pop_data, dev_df = simulate(clone_id, TARGET_PAIR, [root], root)
 
     sampled_ids = [id(x.cell) for x in sampled]
     fasta_string = "".join([x.cell.as_fasta(x.sampled_time) for x in sampled])
