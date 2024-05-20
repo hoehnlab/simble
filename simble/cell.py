@@ -75,6 +75,7 @@ class Cell:
         row["sequence_id"]=f'{str(id(self))}_{row["sequence_id"]}'
         row["cell_id"]=str(id(self))
         row["location"]=self.location.value
+        row["celltype"]=self.type.value
         return row
     
     def as_AIRR(self, generation):
