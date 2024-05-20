@@ -60,6 +60,8 @@ class TargetAminoAcid:
             fwr_distribution = [1 + x for x in s._RNG.exponential(exp_mean, len(FWR_POSITIONS))]
         elif s.FWR_DIST == "constant":
             fwr_distribution = [s.FWR_VAR for _ in range(len(FWR_POSITIONS))]
+        elif s.FWR_DIST == "constant-noise":
+            fwr_distribution = [s.FWR_VAR + s._RNG.normal(0, 0.1) for _ in range(len(FWR_POSITIONS))]
         else:
             fwr_distribution = [s.MULTIPLIER for _ in range(len(FWR_POSITIONS))]
         
