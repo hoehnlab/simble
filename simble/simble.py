@@ -79,6 +79,8 @@ def process_results(results):
         with open(s.RESULTS_DIR + "/all_samples.fasta", "w") as f:
             f.write(fasta_string)
     airr = pd.concat(all_results["airr"])
+    airr["d_germline_start"] = airr["d_germline_start"].astype(pd.Int64Dtype())
+    airr["d_germline_end"] = airr["d_germline_end"].astype(pd.Int64Dtype())
     airr.to_csv(s.RESULTS_DIR + "/all_samples_airr.tsv", sep="\t", index=False)
     pop_data = pd.concat(all_results["pop_data"])
     pop_data.to_csv(s.RESULTS_DIR + "/population_data.csv", index=False)
