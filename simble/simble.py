@@ -98,6 +98,9 @@ def process_results(results):
     nexus += "END;\n"
     with open(s.RESULTS_DIR + "/all_trees.nex", "w") as f:
         f.write(nexus)
+    
+    targets = pd.DataFrame(all_results["targets"])
+    targets.to_csv(s.RESULTS_DIR + "/all_targets.csv", index=False)
 
 
 def main():

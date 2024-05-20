@@ -290,7 +290,8 @@ def run_simulation(i, result_dir):
         "pruned_time_tree": pruned_time_tree, 
         "data": dev_df, 
         "clone_id": clone_id, 
-        "pop_data": pop_data
+        "pop_data": pop_data,
+        "targets": {"clone_id": clone_id, "heavy": TARGET_PAIR.heavy.amino_acid_seq, "light": TARGET_PAIR.light.amino_acid_seq}
         }
 
 
