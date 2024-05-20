@@ -109,12 +109,14 @@ def main():
     for warning in warnings:
         logger.warning(warning)
 
-    if args.seeds is not None:
-        seeds = [np.random.SeedSequence(seed) for seed in args.seeds]
+    if args.seed is not None:
+        # TODO: fix input for seeds
+        seed = args.seed
+        ss = np.random.SeedSequence(seed)
     else:
         ss = np.random.SeedSequence()
-        seeds = ss.spawn(args.n)
-    print(f"Seeds: {[ss.entropy for ss in seeds]}")
+    seeds = ss.spawn(args.n)
+    print(f"Seed: {ss.entropy}")
 
     with tempfile.NamedTemporaryFile(mode="w") as tmpf:
         json.dump(s, tmpf, default=lambda o: o.encode(), indent=4)

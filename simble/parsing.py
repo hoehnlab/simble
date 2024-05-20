@@ -79,10 +79,9 @@ def get_parser():
                          metavar="FILE",
                          type=str,
                          default=None)
-    program.add_argument("--seeds", 
-                         dest="seeds",
-                         help="list of seeds to seed the random number generators",
-                         nargs="*",
+    program.add_argument("--seed", 
+                         dest="seed",
+                         help="seed to seed the random number generators",
                          type=int,
                          default=None)
 
@@ -104,6 +103,12 @@ def get_parser():
                        dest="neutral", 
                        help="neutral simulation (no selection in germinal center)", 
                        action="store_true")
+    model.add_argument("-a", "--antigen", 
+                       dest="antigen", 
+                       help="amount of antigen", 
+                       metavar="A", 
+                       default=None, 
+                       type=int)
     model.add_argument("-m", "--multiplier", 
                        dest="multiplier", 
                        help="selection multiplier", 
@@ -187,12 +192,6 @@ def validate_and_process_args(args):
         data = read_from_json(args.config)
         s.update_from_dict(data)
 
-    if args.seeds:
-        if len(args.seeds) != args.n:
-            if len(args.seeds) < args.n:
-                raise ValueError("Number of seeds must be equal to number of simulations")
-            warnings.append("Number of seeds does not match number of simulations, ignoring extra seeds")
-
     if args.results is not None:
         s.RESULTS_DIR = args.results
     elif s.RESULTS_DIR == "":
@@ -234,6 +233,7 @@ def validate_and_process_args(args):
     _update_setting("CDR_VAR", args.cdr_var)
     _update_setting("FWR_DIST", args.fwr_dist)
     _update_setting("FWR_VAR", args.fwr_var)
+    _update_setting("MAX_POPULATION", args.antigen)
 
     if s.LOCATIONS[1].sample_times is None:
         # if no sample times are specified for the "Other" location, use the same as the GC
