@@ -23,7 +23,7 @@ import logging
 import numpy as np
 import pandas as pd
 
-from .cell import Cell
+from .cell import Cell, CellType
 from .dev_helper import get_data_points
 from .helper import make_all_plots, make_bar_plot
 from .location import Location, LocationName
@@ -51,27 +51,76 @@ def get_population_data(location, time):
     pop_data.update(children_dict)
     return pop_data
 
-    
-def run_simulation(i, result_dir):
+def do_differentiation(location, time):
+    current_generation = location.current_generation
+    to_migrate = []
+    migrate_size = min(int(s._RNG.poisson(location.settings.migration_rate)), len(current_generation)//2)
+    def get_mbc_pc_size(migrate_size, time):
+        current_day = s.GENERATIONS_PER_DAY*time
+        if current_day < 8:
+            mbc_size = int(migrate_size * 0.99)
+            pc_size = migrate_size - mbc_size
+        elif current_day < 16:
+            days = current_day - 8
+            percentage_mbc = 0.99 - (days * 0.98/8)
+            mbc_size = int(migrate_size * percentage_mbc)
+            pc_size = migrate_size - mbc_size
+        elif current_day < 41:
+            pc_size = int(migrate_size * 0.99)
+            mbc_size = migrate_size - pc_size
+        else:
+            pc_size = migrate_size
+            mbc_size = 0
+        return mbc_size, pc_size
+        
+
+    mbc_size, pc_size = get_mbc_pc_size(migrate_size, time)
+    if mbc_size > 0:
+        mbcs = s._RNG.choice(
+            current_generation, 
+            size=mbc_size, 
+            replace=False)
+        current_generation = [x for x in current_generation if x not in mbcs]
+        [mbc.cell.differentiate(CellType.MBC) for mbc in mbcs]
+        to_migrate.extend(mbcs)
+    if pc_size > 0:
+        affinities = [x.cell.affinity for x in current_generation]
+        p = np.array(affinities) / np.sum(affinities)
+        pcs = s._RNG.choice(
+            current_generation, 
+            size=pc_size,
+            p=p,
+            replace=False)
+        current_generation = [x for x in current_generation if x not in pcs]
+        [pc.cell.differentiate(CellType.PC) for pc in pcs]
+        to_migrate.extend(pcs)
+    return to_migrate
+
+def non_gc_population_control(current_generation):
+    # right now the other location will have no reproduction or death
+    # TODO: add a max population
+    # TODO: potentially tweak reproduction 
+    new_generation = []
+    for node in current_generation:
+        child_node = Node(node.cell.remake_self(), parent=node, generation=node.generation+1)
+        node.add_child(child_node)
+        new_generation.append(child_node)
+    return new_generation
+
+
+def simulate(clone_id, TARGET_PAIR, gc_start_generation, root, time=0):
     dev_data_rows = []
     pop_data_rows = []
-    time = 0
-    clone_id = i+1
-    naive = Cell(None, None, created_at=time)
-    root = Node(naive, clone_id=clone_id)
+    naive = root.cell
     locations = [Location(x.name, x) for x in s.LOCATIONS]
     GC = [x for x in locations if x.name == LocationName.GC][0]
     OTHER = [x for x in locations if x.name == LocationName.OTHER][0]
-    GC.current_generation = [root]
-    fasta_string = naive.as_fasta(time)
+    GC.current_generation = gc_start_generation
+    # fasta_string = naive.as_fasta(time)
     airr = []
     sampled_ids = []
-    TARGET_PAIR = TargetAminoPair(
-        naive.heavy_chain.get_gapped_sequence(), 
-        naive.light_chain.get_gapped_sequence(), 
-        naive.heavy_chain.CDR3_length, 
-        naive.light_chain.CDR3_length)
-    TARGET_PAIR.mutate(s.TARGET_MUTATIONS_HEAVY, s.TARGET_MUTATIONS_LIGHT)
+    sampled = []
+    # TARGET_PAIR.mutate(s.TARGET_MUTATIONS_HEAVY, s.TARGET_MUTATIONS_LIGHT)
 
     def make_new_child(node):
         child_cell = Cell(
@@ -92,63 +141,39 @@ def run_simulation(i, result_dir):
         current_generation = location.current_generation
         if len(current_generation) == 0:
             return []
-        
-        if time >= 25:
-            migrate_size = int(s._RNG.poisson(location.settings.migration_rate))
-            to_migrate = s._RNG.choice(
-                current_generation, 
-                size=migrate_size, 
-                replace=False)
-            current_generation = [x for x in current_generation if x not in to_migrate]
 
+        if location.name == LocationName.GC:
+            to_migrate = do_differentiation(location, time)
+        else:
+            # TODO: potentially allow other locations to migrate in the future
+            to_migrate = []
 
-            for node in to_migrate:
-                child_node = Node(node.cell.remake_self(), parent=node, generation=node.generation+1)
-                node.add_child(child_node)
-                OTHER.immigrating_population.append(child_node)
+        current_generation = [x for x in current_generation if x not in to_migrate]
+
+        for node in to_migrate:
+            child_node = Node(node.cell.remake_self(), parent=node, generation=node.generation+1)
+            node.add_child(child_node)
+            OTHER.immigrating_population.append(child_node)
         
         if location.name == LocationName.OTHER:
-            # other location reproduces very slowly
-            # we only want these cells to have 2 children, unlike the GC
-            # get number of cells to reproduce
-            cells_to_reproduce = int(s._RNG.poisson(0.25))
+            new_generation = non_gc_population_control(current_generation)
+            return new_generation
+            
+        available_antigen = location.settings.max_population
 
-            #randomly select cells to reproduce
-            to_divide = s._RNG.choice(
-                current_generation, 
-                size=min(cells_to_reproduce, len(current_generation)), 
-                replace=False)
-            
-            not_dividing = [x for x in current_generation if x not in to_divide]
-            
-            cells_to_live = min(location.settings.max_population - cells_to_reproduce*2, len(not_dividing))
-            to_live = s._RNG.choice(
-                not_dividing,
-                size=cells_to_live,
-                replace=False
-                )
-
-            def update_antigen(x, i):
-                x.antigen = i
-            [update_antigen(x, 1) for x in to_live]
-            [update_antigen(x, 2) for x in to_divide]
-            
+        if s.SELECTION and location.name == LocationName.GC:
+            affinities = [x.cell.affinity for x in current_generation]
+            p = np.array(affinities) / np.sum(affinities)
+    
         else:
-            available_antigen = location.settings.max_population
-
-            if s.SELECTION and location.name == LocationName.GC:
-                affinities = [x.cell.affinity for x in current_generation]
-                p = np.array(affinities) / np.sum(affinities)
-        
-            else:
-                p = None
-                
-            for _ in range(available_antigen):
-                current_node = s._RNG.choice(
-                    current_generation,
-                    p=p
-                    )
-                current_node.antigen += 1
+            p = None
+            
+        for _ in range(available_antigen):
+            current_node = s._RNG.choice(
+                current_generation,
+                p=p
+                )
+            current_node.antigen += 1
 
         location.number_of_children = [min(x.antigen, 10) for x in current_generation]
         for node in current_generation:
@@ -187,15 +212,51 @@ def run_simulation(i, result_dir):
                 if time == 0:
                     # make sure we don't remove the naive cell
                     continue
-                sample_size = min(len(location.current_generation)//2, location.settings.sample_size)
+                if time == s.END_TIME-1:
+                    sample_size = min(len(location.current_generation), location.settings.sample_size)
+                else:
+                    sample_size = min(len(location.current_generation)//2, location.settings.sample_size)
                 current_sample = s._RNG.choice(location.current_generation, size=sample_size, replace=False)
                 location.current_generation = [x for x in location.current_generation if x not in current_sample]
                 for node in current_sample:
                     sampled_ids.append(id(node.cell))
-                    fasta_string += node.cell.as_fasta(time)
+                    node.sampled_time = time
+                    sampled.append(node)
                     airr.extend(node.cell.as_AIRR(time))
 
         time += 1
+
+
+    df = pd.DataFrame(dev_data_rows)
+    pop_data = pd.DataFrame(pop_data_rows)
+    pop_data["clone_id"] = clone_id
+    
+    return sampled, pop_data, df
+
+    
+def run_simulation(i, result_dir):
+    time = 0
+    clone_id = i+1
+    naive = Cell(None, None, created_at=time)
+    root = Node(naive, clone_id=clone_id)
+    airr = []
+    TARGET_PAIR = TargetAminoPair(
+        naive.heavy_chain.get_gapped_sequence(), 
+        naive.light_chain.get_gapped_sequence(), 
+        naive.heavy_chain.CDR3_length, 
+        naive.light_chain.CDR3_length)
+    TARGET_PAIR.mutate(s.TARGET_MUTATIONS_HEAVY, s.TARGET_MUTATIONS_LIGHT)
+
+    sampled, pop_data, dev_df = simulate(clone_id, TARGET_PAIR, [root], root)
+
+    sampled_ids = [id(x.cell) for x in sampled]
+    fasta_string = "".join([x.cell.as_fasta(x.sampled_time) for x in sampled])
+
+    airr = [x for node in sampled for x in node.cell.as_AIRR(node.sampled_time)]
+    airr = pd.DataFrame(airr)
+    airr["sequence_id"] = airr["sequence_id"].apply(lambda x: f"{clone_id}_{x}")
+    airr["cell_id"] = airr["cell_id"].apply(lambda x: f"{clone_id}_{x}")
+    airr["clone_id"] = clone_id
 
     newick = f'({root.write_newick()});'
     pruned = root.prune_subtree(sampled_ids)
@@ -212,21 +273,12 @@ def run_simulation(i, result_dir):
         logger.info("writing pruned newick tree")
         with open(result_dir + "/pruned_tree.tree", "w") as f:
             f.write(pruned_newick)
-
-
-    df = pd.DataFrame(dev_data_rows)
-    pop_data = pd.DataFrame(pop_data_rows)
-    airr = pd.DataFrame(airr)
-    airr["sequence_id"] = airr["sequence_id"].apply(lambda x: f"{clone_id}_{x}")
-    airr["cell_id"] = airr["cell_id"].apply(lambda x: f"{clone_id}_{x}")
-    airr["clone_id"] = clone_id
-    pop_data["clone_id"] = clone_id
     
     if s.DEV:
         logger.info(f"max affinity was: {TARGET_PAIR.max_affinity}")
         logger.info("making plots")
         # make plots
-        make_all_plots(df, result_dir)
+        make_all_plots(dev_df, result_dir)
         make_bar_plot(list(TARGET_PAIR.heavy.cdr_multipliers.values()), result_dir + "/cdr_multiplier.png", "CDR multiplier value", "CDR multiplier distribution")
         make_bar_plot(list(TARGET_PAIR.heavy.fwr_multipliers.values()), result_dir + "/fwr_multiplier.png", "FWR multiplier value", "FWR multiplier distribution")
 
@@ -236,9 +288,10 @@ def run_simulation(i, result_dir):
         "true_tree": newick, 
         "pruned_tree": pruned_newick,
         "pruned_time_tree": pruned_time_tree, 
-        "data": df, 
+        "data": dev_df, 
         "clone_id": clone_id, 
-        "pop_data": pop_data
+        "pop_data": pop_data,
+        "targets": {"clone_id": clone_id, "heavy": TARGET_PAIR.heavy.amino_acid_seq, "light": TARGET_PAIR.light.amino_acid_seq}
         }
 
 

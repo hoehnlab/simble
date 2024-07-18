@@ -41,7 +41,7 @@ class LocationSettings(Encodable):
             }
         elif name == LocationName.OTHER:
             defaults = {
-                "sample_times": None,
+                "sample_times": [],
                 "mutation_rate": 0.0,
                 "sample_size": 12
             }
@@ -89,10 +89,17 @@ class Settings(Encodable):
         self.CDR_VAR = 0.995
         self.FWR_DIST = "exponential"
         self.FWR_VAR = 0.85
+        self.TIME_SWITCH = 50
+        self.GENERATIONS_PER_DAY = 0.5
 
     @property
     def END_TIME(self):
-        return max([x.sample_times[-1] for x in self.LOCATIONS]) + 1
+        def _max_sample_time(sample_times):
+            if len(sample_times) > 0:
+                return max(sample_times)
+            else:
+                return 0
+        return max([_max_sample_time(x.sample_times) for x in self.LOCATIONS]) + 1
     
     def update_from_dict(self, dict):
         for key, value in dict.items():

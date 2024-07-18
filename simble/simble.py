@@ -79,6 +79,8 @@ def process_results(results):
         with open(s.RESULTS_DIR + "/all_samples.fasta", "w") as f:
             f.write(fasta_string)
     airr = pd.concat(all_results["airr"])
+    airr["d_germline_start"] = airr["d_germline_start"].astype(pd.Int64Dtype())
+    airr["d_germline_end"] = airr["d_germline_end"].astype(pd.Int64Dtype())
     airr.to_csv(s.RESULTS_DIR + "/all_samples_airr.tsv", sep="\t", index=False)
     pop_data = pd.concat(all_results["pop_data"])
     pop_data.to_csv(s.RESULTS_DIR + "/population_data.csv", index=False)
@@ -96,6 +98,9 @@ def process_results(results):
     nexus += "END;\n"
     with open(s.RESULTS_DIR + "/all_trees.nex", "w") as f:
         f.write(nexus)
+    
+    targets = pd.DataFrame(all_results["targets"])
+    targets.to_csv(s.RESULTS_DIR + "/all_targets.csv", index=False)
 
 
 def main():
@@ -109,12 +114,14 @@ def main():
     for warning in warnings:
         logger.warning(warning)
 
-    if args.seeds is not None:
-        seeds = [np.random.SeedSequence(seed) for seed in args.seeds]
+    if args.seed is not None:
+        # TODO: fix input for seeds
+        seed = args.seed
+        ss = np.random.SeedSequence(seed)
     else:
         ss = np.random.SeedSequence()
-        seeds = ss.spawn(args.n)
-    print(f"Seeds: {[ss.entropy for ss in seeds]}")
+    seeds = ss.spawn(args.n)
+    print(f"Seed: {ss.entropy}")
 
     with tempfile.NamedTemporaryFile(mode="w") as tmpf:
         json.dump(s, tmpf, default=lambda o: o.encode(), indent=4)

@@ -28,6 +28,7 @@ class Node:
         self.antigen=0
         self.generation=generation
         self.clone_id=clone_id if clone_id else parent.clone_id if parent else -1
+        self.sampled_time = None
     
     def add_child(self, child):
         child.parent = self
