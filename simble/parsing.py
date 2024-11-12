@@ -98,6 +98,15 @@ def get_parser():
                           help="specify sample times for only the 'Other' location", 
                           nargs=3, 
                           default=None)
+    sampling.add_argument("--sample-size", 
+                          dest="sample_size", 
+                          metavar="N", 
+                          help="specify sample size for 'GC' location", 
+                          default=None)
+    sampling.add_argment("--sample-size-other",
+                         dest="sample_size_other",
+                         metavar="N",
+                         help="specify sample size for the 'Other' location",)
 
     model.add_argument("--neutral", 
                        dest="neutral", 
@@ -234,6 +243,11 @@ def validate_and_process_args(args):
     _update_setting("FWR_DIST", args.fwr_dist)
     _update_setting("FWR_VAR", args.fwr_var)
     _update_setting("MAX_POPULATION", args.antigen)
+
+    if args.sample_size:
+        s.LOCATIONS[0].sample_size = args.sample_size
+    if args.sample_size_other:
+        s.LOCATIONS[1].sample_size = args.sample_size_other
 
     if s.LOCATIONS[1].sample_times is None:
         # if no sample times are specified for the "Other" location, use the same as the GC
