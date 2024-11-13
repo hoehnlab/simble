@@ -103,10 +103,11 @@ def get_parser():
                           metavar="N", 
                           help="specify sample size for 'GC' location", 
                           default=None)
-    sampling.add_argment("--sample-size-other",
+    sampling.add_argument("--sample-size-other",
                          dest="sample_size_other",
                          metavar="N",
-                         help="specify sample size for the 'Other' location",)
+                         help="specify sample size for the 'Other' location",
+                         default=None)
 
     model.add_argument("--neutral", 
                        dest="neutral", 
