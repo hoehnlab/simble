@@ -28,7 +28,7 @@ from multiprocessing import Pool
 import numpy as np
 import pandas as pd
 
-from .helper import make_all_plots
+from .helper import make_all_plots, update_helper_tables
 from .location import as_enum
 from .parsing import get_parser, validate_and_process_args
 from .settings import s
@@ -50,19 +50,19 @@ def set_logger():
     logging.basicConfig(format=log_format, datefmt='%H:%M:%S')
 
 
-def do_simulation(i, seed, filename):
+def do_simulation(clone_id, seed, filename):
     with open(filename, "r") as f:
         settings = json.load(f, object_hook=as_enum)
     s.update_from_dict(settings)
     s._RNG = np.random.default_rng(seed)
     set_logger()
-    logger.info(f"Starting simulation {i}")
+    logger.info(f"Starting simulation for clone {clone_id}")
     folder = s.RESULTS_DIR
-    curr_results = f'{folder}/results{i}/'
+    curr_results = f'{folder}/results{clone_id}/'
     if s.DEV and not os.path.exists(curr_results):
         os.mkdir(curr_results)
     start = time.time()
-    data = run_simulation(i, curr_results)
+    data = run_simulation(clone_id, curr_results)
     end = time.time()
 
     logger.debug(f"Time taken: {end-start}")
@@ -107,7 +107,11 @@ def main():
     parser = get_parser()
 
     args = parser.parse_args()
-    warnings = validate_and_process_args(args)
+    try:
+        warnings = validate_and_process_args(args)
+    except Exception as e:
+        raise SystemExit(e)
+    update_helper_tables()
 
     set_logger()
 
@@ -123,6 +127,8 @@ def main():
     seeds = ss.spawn(args.n)
     print(f"Seed: {ss.entropy}")
 
+    clone = args.clone
+
     with tempfile.NamedTemporaryFile(mode="w") as tmpf:
         json.dump(s, tmpf, default=lambda o: o.encode(), indent=4)
         tmpf.flush()
@@ -135,7 +141,7 @@ def main():
         else:
             result = []
             for i in range(args.n):
-                result.append(do_simulation(i, seeds[i], tmpf.name))
+                result.append(do_simulation(clone + i, seeds[i], tmpf.name))
 
     process_results(result)
 

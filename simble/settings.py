@@ -91,6 +91,9 @@ class Settings(Encodable):
         self.FWR_VAR = 0.85
         self.TIME_SWITCH = 50
         self.GENERATIONS_PER_DAY = 0.5
+        self.NAIVE_FILE = None
+        self.USER_FIELDS_TO_KEEP = []
+        self.NAIVE_RANDOM = True
 
     @property
     def END_TIME(self):

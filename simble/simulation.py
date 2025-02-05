@@ -234,10 +234,9 @@ def simulate(clone_id, TARGET_PAIR, gc_start_generation, root, time=0):
     return sampled, pop_data, df
 
     
-def run_simulation(i, result_dir):
+def run_simulation(clone_id, result_dir):
     time = 0
-    clone_id = i+1
-    naive = Cell(None, None, created_at=time)
+    naive = Cell(None, None, created_at=time, clone_id=clone_id)
     root = Node(naive, clone_id=clone_id)
     airr = []
     TARGET_PAIR = TargetAminoPair(

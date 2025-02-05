@@ -26,6 +26,7 @@ import matplotlib.pyplot as plt
 import pandas as pd
 
 from .settings import s
+from .constants import AIRR_REQUIRED_FIELDS, SIMBLE_REQUIRED_FIELDS, AIRR_FIELDS_TO_GENERATE
 
 logger = logging.getLogger(__package__)
 
@@ -33,9 +34,19 @@ _ROOT = os.path.abspath(os.path.dirname(__file__))
 def get_data(path):
     return os.path.join(_ROOT, 'data', path)
 
-AIRR_REQUIRED_FIELDS = ['sequence_id', 'sequence', 'rev_comp', 'productive', 'v_call', 'd_call', 'j_call', 'sequence_alignment', 'germline_alignment', 'junction', 'junction_aa', 'v_cigar', 'd_cigar', 'j_cigar', 'np1_length', 'v_germline_start', 'v_germline_end', 'd_germline_start', 'd_germline_end', 'j_germline_start', 'j_germline_end', 'germline_alignment_d_mask', 'locus']
-
-AIRR_FIELDS_TO_GENERATE = ['sequence_id', 'sequence', 'sequence_alignment', 'germline_alignment', 'location', 'sample_time', 'junction', 'junction_aa', 'junction_length']
+def get_naive_table():
+    if s.NAIVE_FILE:
+        naive = pd.read_csv(s.NAIVE_FILE, header=0)
+        renamed_columns = {
+            "heavy_sequence": "heavy",
+            "light_sequence": "light",
+            "heavy_sequence_alignment": "heavy_aligned",
+            "light_sequence_alignment": "light_aligned"
+        }
+        naive.rename(columns=renamed_columns, inplace=True)
+    else:
+        naive = pd.read_csv(get_data("naive_pairs_filtered.csv"), header=0)
+    return naive
 
 AIRR_FIELDS_TO_KEEP = [x for x in AIRR_REQUIRED_FIELDS if x not in AIRR_FIELDS_TO_GENERATE]
 
@@ -47,11 +58,18 @@ def read_sf5_table(filename):
 HEAVY_MUTABILITY_TABLE = read_sf5_table(get_data("hh_sf5.csv"))
 LIGHT_MUTABILITY_TABLE = read_sf5_table(get_data("hkl_sf5.csv"))
 
-NAIVE = pd.read_csv(get_data("naive_pairs_filtered.csv"), header=0)
+NAIVE = get_naive_table()
+NAIVE_ROWS = len(NAIVE.index)
 
 HEAVY_SUBSTITUTION_TABLE = read_sf5_table(get_data("hh_sf5_substitution.csv"))
 LIGHT_SUBSTITUTION_TABLE = read_sf5_table(get_data("hkl_sf5_substitution.csv"))
 
+
+def update_helper_tables():
+    global NAIVE 
+    global NAIVE_ROWS
+    NAIVE = get_naive_table()
+    NAIVE_ROWS = len(NAIVE.index)
 
 def translate_to_amino_acid(nucleotide_seq):
     amino_acid_seq = ""
@@ -110,16 +128,20 @@ def remove_gaps(aligned):
     return aligned.replace(".", "")
 
 
-def get_random_start_pair():
-    row = NAIVE.sample(random_state=s._RNG)
-    StartPair = namedtuple("RawStartPair", ["heavy", "light"])
-    heavy = _format_random_start_chain(row, "heavy")
-    light = _format_random_start_chain(row, "light")
+def get_start_pair(i=None):
+    if i and not s.NAIVE_RANDOM:
+        row = NAIVE.iloc[i % NAIVE_ROWS]
+    else:
+        row = NAIVE.sample(random_state=s._RNG)
+    StartPair = namedtuple("RawStartPair", ["heavy", "light", "user_constants"])
+    heavy = _format_start_chain(row, "heavy")
+    light = _format_start_chain(row, "light")
+    user_constants = {x: row[x] for x in s.USER_FIELDS_TO_KEEP}
     if len(heavy.input.aligned) < 312 or len(light.input.aligned) < 312:
         logger.warning("aligned sequence length is less than 312")
-    return StartPair(heavy, light)
+    return StartPair(heavy, light, user_constants)
 
-def _format_random_start_chain(row, type):
+def _format_start_chain(row, type):
     StartInput = namedtuple("StartInput", ["chain", "aligned", "cdr3_aa_length", "junction"])
     StartInfo = namedtuple("StartInfo", ["input", "constants"])
     get_cdr3_length = lambda x: int(len(x)/3)

@@ -219,6 +219,30 @@ Available arguments:
         <td></td>
         <td>a list of RNG seeds to reproduce specific simulations</td>
     </tr>
+    <tr>
+        <td>--clone_id</td>
+        <td></td>
+        <td>1</td>
+        <td>specify a starting clone id (1-indexed)</td>
+    </tr>
+    <tr>
+        <td>--naive</td>
+        <td></td>
+        <td></td>
+        <td>path to input naive sequences</td>
+    </tr>
+    <tr>
+        <td>--keep-cols</td>
+        <td></td>
+        <td></td>
+        <td>additional columns from the naive data to keep</td>
+    </tr>
+    <tr>
+        <td>--naive-random</td>
+        <td></td>
+        <td></td>
+        <td>randomly sample from naive input rather than by clone id, always true if naive file is not specified</td>
+    </tr>
 </table>
 
 Thank you for using simble!

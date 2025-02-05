@@ -20,7 +20,7 @@
 from enum import Enum
 
 from .chain import HeavyChain, LightChain
-from .helper import get_random_start_pair
+from .helper import get_start_pair
 from .location import LocationName
 from .settings import s
 
@@ -38,9 +38,11 @@ class Cell:
             created_at, 
             is_alive=True,
             location=LocationName.GC,
-            type=CellType.DEFAULT) -> None:
+            type=CellType.DEFAULT,
+            clone_id=None) -> None:
+        self.user_constants = {}
         if heavy_chain is None and light_chain is None:
-            pair = get_random_start_pair()
+            pair = get_start_pair(clone_id-1 if clone_id else None)
             heavy_chain = HeavyChain(
                 nucleotide_seq=pair.heavy.input.chain, 
                 gapped_seq=pair.heavy.input.aligned,
@@ -53,6 +55,7 @@ class Cell:
                 cdr3_aa_length=pair.light.input.cdr3_aa_length,
                 junction=pair.light.input.junction)
             light_chain.airr_constants = pair.light.constants
+            self.user_constants = pair.user_constants
         self.heavy_chain = heavy_chain
         self.light_chain = light_chain
         self.created_at = created_at
@@ -61,6 +64,7 @@ class Cell:
         self.type = type
         self.mutation_rate = s.LOCATIONS[0].mutation_rate if self.location == LocationName.GC else 0
         self.affinity = 1
+        self.clone_id = clone_id
 
     def kill_cell(self):
         self.is_alive = False
@@ -76,6 +80,7 @@ class Cell:
         row["cell_id"]=str(id(self))
         row["location"]=self.location.value
         row["celltype"]=self.type.value
+        row.update(self.user_constants)
         return row
     
     def as_AIRR(self, generation):
@@ -106,10 +111,12 @@ class Cell:
             self.created_at,
             self.is_alive,
             self.location,
-            self.type
+            self.type,
+            self.clone_id
         )
         new.mutation_rate = self.mutation_rate
         new.affinity = self.affinity
+        new.user_constants = self.user_constants
         return new
     
     def calculate_affinity(self, target_pair):

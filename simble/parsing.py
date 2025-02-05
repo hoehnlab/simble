@@ -20,9 +20,11 @@
 import argparse
 import json
 import os
+import pandas as pd
 
 from .location import as_enum
 from .settings import s
+from .constants import AIRR_FIELDS_TO_GENERATE, SIMBLE_REQUIRED_FIELDS
 
 
 def get_parser():
@@ -84,6 +86,29 @@ def get_parser():
                          help="seed to seed the random number generators",
                          type=int,
                          default=None)
+    program.add_argument("--naive", 
+                         dest="naive",
+                         help="path to input naive sequences",
+                         metavar="FILE",
+                         type=str,
+                         default=None)
+    program.add_argument("--keep-cols", 
+                         dest="keep_cols",
+                         help="additional columns from the naive data to keep",
+                         metavar="COL",
+                         type=str,
+                         nargs="+",
+                         default=None)
+    program.add_argument("--naive-random", 
+                         dest="naive_random", 
+                         help="randomly sample from naive input rather than by clone id, always true if naive file is not specified", 
+                         action="store_true")
+    program.add_argument("--clone_id", 
+                         dest="clone", 
+                         help="specify a starting clone id (1-indexed)", 
+                         type=int,
+                         default=1)
+
 
     sampling.add_argument("-s", "--samples", 
                           dest="sample_info", 
@@ -196,6 +221,49 @@ def validate_samples(sample_info):
     if sample_info[2] > sample_info[1] - sample_info[0]:
         raise ValueError("sample step must be less than or equal to stop - start")
 
+
+def validate_and_process_naive_input(args, warnings):
+    if not args.naive:
+        if args.keep_cols:
+            warnings.append("Columns to keep can only be specified when providing naive input data. Ignoring --keep-cols.")
+        return
+
+    # check that naive file exists
+    if not os.path.exists(args.naive):
+        raise FileNotFoundError(f"{args.naive} cannot be found")
+
+    try:
+        naive = pd.read_csv(args.naive, header=0)
+    except Exception as e:
+        e.add_note(f"Cannot open file")
+        raise
+    
+    naive_cols = list(naive.columns)
+
+    def raise_value_error(msg):
+        raise ValueError(msg)
+
+    def warn_missing_cols(col):
+        warnings.append(f"{col} is not in the naive input. Ignoring {col}.")
+        return col
+
+    # check that the required heavy and light chain columns are present
+    for chain in ["heavy", "light"]:
+        [raise_value_error(f"{chain}_{col} is missing from the naive input. This is a required field") for col in SIMBLE_REQUIRED_FIELDS if f"{chain}_{col}" not in naive_cols]
+
+    if args.keep_cols:
+        # check that keep_cols don't clash with simble-produced columns
+        [raise_value_error(f"{col} is an invalid column to keep") for col in args.keep_cols if col in AIRR_FIELDS_TO_GENERATE]
+        # check that keep_cols are in naive_file
+        missing_cols = [warn_missing_cols(col) for col in args.keep_cols if col not in naive_cols]
+        args.keep_cols = [col for col in args.keep_cols if not col in missing_cols]
+
+    # update the settings:
+    _update_setting("NAIVE_FILE", args.naive)
+    _update_setting("USER_FIELDS_TO_KEEP", args.keep_cols)
+    _update_setting("NAIVE_RANDOM", args.naive_random)
+    
+
 def validate_and_process_args(args):
     warnings = []
     if args.config is not None:
@@ -255,6 +323,11 @@ def validate_and_process_args(args):
     if s.LOCATIONS[1].sample_times is None:
         # if no sample times are specified for the "Other" location, use the same as the GC
         s.LOCATIONS[1].sample_times = s.LOCATIONS[0].sample_times
+
+    if args.clone < 1:
+        raise ValueError(f"{args.clone} is not a valid clone id, clone ids must be greater than or equal to 1")
+    
+    validate_and_process_naive_input(args, warnings)
 
     return warnings
 
