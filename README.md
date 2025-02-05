@@ -92,6 +92,98 @@ pip install <requirement>
 python3 -m simble -flags
 ```
 
+## Using your own naive sequences
+
+To use your own naive data, you can use the `--naive` argument:
+
+```sh
+simble --naive <naive_file.csv> 
+```
+
+Additionally, you may wish to keep columns from your naive dataset:
+
+```sh
+simble --naive <naive_file.csv> --keep-cols cell_barcode cell_label
+```
+
+These columns may not have the same name as any required fields, and additionally
+may not be called any of the following:
+-sequence_id
+-sequence
+-sequence_alignment
+-germline_alignment
+-location
+-sample_time
+-junction
+-junction_aa
+-junction_length
+
+When providing a naive dataset, the default behavior is that each clone will
+use the naive pair of sequences at row clone_id modulo (rows in naive dataset).
+For example, if the naive dataset has 10 entries, clone 6 will use the pair of 
+sequences in the 6th row, and clone 13 will use the 3rd row. 
+
+If you would like each clone to use a random starting pair from the table:
+
+```sh
+simble --naive <naive_file.csv> --naive-random
+```
+
+or if you would like to specify a clone_id to start at:
+```sh
+simble --naive <naive_file.csv> --clone-id 4
+```
+
+
+Your naive data should have the following AIRR columns for both heavy and 
+light chains (prefixed with 'heavy_' and 'light_' respectively):
+
+-sequence
+-rev_comp
+-productive
+-v_call
+-d_call
+-j_call
+-sequence_alignment
+-junction
+-junction_aa
+-v_cigar
+-d_cigar
+-j_cigar
+-np1_length
+-v_germline_start
+-v_germline_end
+-d_germline_start
+-d_germline_end
+-j_germline_start
+-j_germline_end
+-germline_alignment_d_mask
+-locus
+-cdr3
+
+For convenience, once `simble` is installed, you can also run the command 
+`process_naive` to compile the correct csv from a heavy AIRR tsv and a light AIRR tsv:
+
+```sh
+process_naive -o <outfile> --heavy <heavy_airr.tsv> --light <light_airr.tsv> --join <column_to_join_on>
+```
+
+For example, to join on "cell_id":
+```sh
+process_naive -o my_naive_data.csv --heavy IGH_naive_airr.tsv --light IGL_IGK_naive_airr.tsv -j cell_id
+```
+
+To keep columns "cell_barcode" and "cell_label" from the heavy table:
+```sh
+process_naive -o my_naive_data.csv --heavy IGH_naive_airr.tsv --light IGL_IGK_naive_airr.tsv -j cell_id --keep-cols cell_barcode cell_label
+```
+
+Or to keep columns "cell_barcode" and "cell_label" from the light table:
+```sh
+process_naive -o my_naive_data.csv --heavy IGH_naive_airr.tsv --light IGL_IGK_naive_airr.tsv -j cell_id --keep-cols cell_barcode cell_label --keep-from light
+```
+
+
 
 ## All arguments
 
