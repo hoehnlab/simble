@@ -92,9 +92,11 @@ def process_results(results):
 
     nexus = "#NEXUS\n" + "BEGIN TREES;\n"
     for clone in results:
-        nexus += f'\tTree true_tree_{clone["clone_id"]} = {clone["true_tree"]}\n'
+        # nexus += f'\tTree true_tree_{clone["clone_id"]} = {clone["true_tree"]}\n'
         nexus += f'\tTree pruned_tree_{clone["clone_id"]} = {clone["pruned_tree"]}\n'
         nexus += f'\tTree pruned_time_tree_{clone["clone_id"]} = {clone["pruned_time_tree"]}\n'
+        nexus += f'\tTree simplified_genetic_distance_tree_{clone["clone_id"]} = {clone["simplified_tree"]}\n'
+        nexus += f'\tTree simplified_time_tree_{clone["clone_id"]} = {clone["simplified_time_tree"]}\n'
     nexus += "END;\n"
     with open(s.RESULTS_DIR + "/all_trees.nex", "w") as f:
         f.write(nexus)

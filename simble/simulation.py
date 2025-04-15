@@ -181,6 +181,9 @@ def simulate(clone_id, TARGET_PAIR, gc_start_generation, root, time=0):
             children = [make_new_child(node) for _ in range(min(node.antigen, 10))]
             live_children = [x for x in children if x.cell.is_alive]
             new_generation.extend(live_children)
+            # TODO (jf): add a flag so you can keep the full tree if you want
+            if node.antigen == 0:
+                node.prune_up_tree()
         
 
         return new_generation
@@ -226,6 +229,9 @@ def simulate(clone_id, TARGET_PAIR, gc_start_generation, root, time=0):
 
         time += 1
 
+    [x.finish_migration() for x in locations]
+    for location in locations:
+        [node.prune_up_tree() for node in location.current_generation]
 
     df = pd.DataFrame(dev_data_rows)
     pop_data = pd.DataFrame(pop_data_rows)
@@ -258,21 +264,33 @@ def run_simulation(i, result_dir):
     airr["cell_id"] = airr["cell_id"].apply(lambda x: f"{clone_id}_{x}")
     airr["clone_id"] = clone_id
 
-    newick = f'({root.write_newick()});'
-    pruned = root.prune_subtree(sampled_ids)
+    # newick = f'({root.write_newick()});'
+    # pruned = root.prune_subtree(sampled_ids)
+    pruned = root
     pruned_newick = f'({pruned.write_newick()});'
     pruned_time_tree = f'({pruned.write_newick(time_tree=True)});'
+    simplified_tree = pruned.simplify_subtree()
+    simplified_tree_newick = f'({simplified_tree.write_newick()});'
+    simplified_time_tree_newick = f'({simplified_tree.write_newick(time_tree=True)});'
     if s.DEV:
         with open(result_dir + "/all_samples.fasta", "w") as f:
             f.write(fasta_string)
 
-        logger.info("writing newick tree")
-        with open(result_dir + "/true_tree.tree", "w") as f:
-            f.write(newick)
+        # logger.info("writing newick tree")
+        # with open(result_dir + "/true_tree.tree", "w") as f:
+        #     f.write(newick)
 
         logger.info("writing pruned newick tree")
         with open(result_dir + "/pruned_tree.tree", "w") as f:
             f.write(pruned_newick)
+
+        logger.info("writing simplified newick tree")
+        with open(result_dir + "/simplified_time_tree.tree", "w") as f:
+            f.write(simplified_tree_newick)
+        
+        logger.info("writing simplified newick time tree")
+        with open(result_dir + "/simplified_time_tree.tree", "w") as f:
+            f.write(simplified_time_tree_newick)
     
     if s.DEV:
         logger.info(f"max affinity was: {TARGET_PAIR.max_affinity}")
@@ -285,9 +303,11 @@ def run_simulation(i, result_dir):
     return {
         "airr": airr, 
         "fasta": fasta_string, 
-        "true_tree": newick, 
+        # "true_tree": pruned_newick, 
         "pruned_tree": pruned_newick,
         "pruned_time_tree": pruned_time_tree, 
+        "simplified_tree": simplified_tree_newick,
+        "simplified_time_tree": simplified_time_tree_newick,
         "data": dev_df, 
         "clone_id": clone_id, 
         "pop_data": pop_data,
