@@ -17,11 +17,12 @@
  along with simble.  If not, see <https://www.gnu.org/licenses/>.
  """
 
-from collections import Counter
 import logging
+from collections import Counter
 
 import numpy as np
 import pandas as pd
+from tqdm import tqdm
 
 from .cell import Cell, CellType
 from .dev_helper import get_data_points
@@ -109,6 +110,7 @@ def non_gc_population_control(current_generation):
 
 
 def simulate(clone_id, TARGET_PAIR, gc_start_generation, root, time=0):
+    bar = tqdm(total=s.END_TIME-1, initial=0, desc=f"Clone {clone_id}", position=clone_id, leave=True)
     dev_data_rows = []
     pop_data_rows = []
     naive = root.cell
@@ -228,6 +230,9 @@ def simulate(clone_id, TARGET_PAIR, gc_start_generation, root, time=0):
                     airr.extend(node.cell.as_AIRR(time))
 
         time += 1
+        if time<s.END_TIME:
+            bar.update()
+
 
     [x.finish_migration() for x in locations]
     for location in locations:
@@ -236,6 +241,9 @@ def simulate(clone_id, TARGET_PAIR, gc_start_generation, root, time=0):
     df = pd.DataFrame(dev_data_rows)
     pop_data = pd.DataFrame(pop_data_rows)
     pop_data["clone_id"] = clone_id
+    bar.bar_format = "{desc}: |{bar}| {n}/{total} in {elapsed}"
+    bar.refresh()
+    bar.close()
     
     return sampled, pop_data, df
 
