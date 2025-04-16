@@ -40,19 +40,22 @@ class Node:
         self.children.append(child)
 
     def write_newick(self, time_tree=False):
-        name = f"cell_id={str(self.clone_id)}_{str(id(self.cell))}|location={self.cell.location.value}|generation={self.generation}"
+        name = f"{str(self.clone_id)}_{str(id(self.cell))}"
+        labels= f"cell_id={str(self.clone_id)}_{str(id(self.cell))},location={self.cell.location.value},generation={self.generation}"
+        # name = f"cell_id={str(self.clone_id)}_{str(id(self.cell))}|location={self.cell.location.value}|generation={self.generation}"
         if self.occupancy_time is not None:
-            name += f"|occupancy_time={self.occupancy_time}"
+            labels += f",occupancy_time={self.occupancy_time},occupancy={self.occupancy_time/self.time_since_last_split}"
         if time_tree:
             branch_length = str(self.time_since_last_split) if self.time_since_last_split is not None else str(1)
         else:
             branch_length = str(self.heavy_mutations+self.light_mutations)
         branch = f':{branch_length}'
+        labels = f"[&{labels}]"
         if len(self.children)==0:
-            return name + branch
+            return name + labels + branch
         else:
             children = "(" + ",".join([x.write_newick(time_tree=time_tree) for x in self.children]) + ")"
-            return children + name + branch
+            return children + name + labels + branch
         
     def copy(self):
         new = Node(
@@ -112,7 +115,6 @@ def _build_tree_to_keep(node, to_keep):
         if id(node.cell) in to_keep:
             return node.copy()
         else:
-            logger.warning(f"Pruning is still doing something")
             return None
     else:
         new_node = node.copy()
