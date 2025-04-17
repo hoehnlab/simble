@@ -188,4 +188,31 @@ def _write_newick_iteratively(tree, time_tree=False):
     return newick
 
 
+def simplify_tree(root):
+    root.get_occupancy_time()
+    new_root = root.copy()
+    subtrees = [(new_root, child, 0, 0, 0) for child in root.children]
+    while len(subtrees) > 0:
+        parent, current_node, time_since_last_split, heavy_mutations_since_last_split, light_mutations_since_last_split = subtrees.pop(0)
+        current_node.get_occupancy_time()
+        if len(current_node.children) == 1:
+            # we're removing this node
+            child = current_node.children[0]
+            heavy_mutations_since_last_split += current_node.heavy_mutations
+            light_mutations_since_last_split += current_node.light_mutations
+            subtrees.append((parent, child, time_since_last_split+1, heavy_mutations_since_last_split, light_mutations_since_last_split))
+        else:
+            # we're keeping this node
+            new_node = current_node.copy()
+            new_node.time_since_last_split = time_since_last_split+1
+            new_node.heavy_mutations += heavy_mutations_since_last_split
+            new_node.light_mutations += light_mutations_since_last_split
+            parent.add_child(new_node)
+            for child in current_node.children:
+                subtrees.append((new_node, child, 0, 0, 0))
+    return new_root
+
+
+
+
 
