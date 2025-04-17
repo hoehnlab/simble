@@ -26,7 +26,6 @@ class Node:
         self.parent=parent
         self.heavy_mutations=heavy_mutations
         self.light_mutations=light_mutations
-        self.generation=0
         self.children=[]
         self.antigen=0
         self.generation=generation
@@ -40,11 +39,15 @@ class Node:
         self.children.append(child)
 
     def write_newick(self, time_tree=False):
+        return _write_newick_iteratively(self, time_tree=time_tree)
+
+    def _write_newick(self, time_tree=False, subtrees=None, recursion=False):
         name = f"{str(self.clone_id)}_{str(id(self.cell))}"
         labels= f"cell_id={str(self.clone_id)}_{str(id(self.cell))},location={self.cell.location.value},generation={self.generation}"
-        # name = f"cell_id={str(self.clone_id)}_{str(id(self.cell))}|location={self.cell.location.value}|generation={self.generation}"
         if self.occupancy_time is not None:
-            labels += f",occupancy_time={self.occupancy_time},occupancy={self.occupancy_time/self.time_since_last_split}"
+            labels += f",occupancy_time={self.occupancy_time}"
+            if self.time_since_last_split is not None:
+                labels += f",occupancy={self.occupancy_time/self.time_since_last_split}"
         if time_tree:
             branch_length = str(self.time_since_last_split) if self.time_since_last_split is not None else str(1)
         else:
@@ -52,10 +55,15 @@ class Node:
         branch = f':{branch_length}'
         labels = f"[&{labels}]"
         if len(self.children)==0:
-            return name + labels + branch
-        else:
+            children = ""
+            # return name + labels + branch
+        elif subtrees is None and recursion:
             children = "(" + ",".join([x.write_newick(time_tree=time_tree) for x in self.children]) + ")"
-            return children + name + labels + branch
+        elif subtrees is None or len(subtrees) == 0:
+            children = ""
+        else:
+            children = "(" + ",".join(subtrees) + ")"
+        return children + name + labels + branch
         
     def copy(self):
         new = Node(
@@ -138,5 +146,46 @@ def _remove_non_splitting_nodes(node, time_since_last_split=0, heavy_mutations_s
             if new_child is not None:
                 new_node.add_child(new_child)
         return new_node
+def _write_newick_iteratively(tree, time_tree=False):
+    stack = [tree]
+    children_newick = {}
+    newick = ""
+
+    def add_to_newick_dict(node, newick):
+        # for memory efficiency, once we're adding this node's newick to its parent
+        # we can remove it from the dict
+        if node.parent is None:
+            return newick
+        if node.parent not in children_newick:
+            children_newick[node.parent] = []
+        children_newick[node.parent].append(newick)
+        if node in children_newick:
+            children_newick.pop(node)
+        return ""
+    
+    while len(stack) > 0:
+        current = stack.pop()
+        number_of_children = len(current.children)
+        child_newicks = children_newick.get(current, [])
+        number_of_child_newicks = len(child_newicks)
+        if len(current.children) == 0:
+            # leaf node <- but this should be handled by number_of_children == number_of_child_newicks but i want to just test it first
+            curr_newick = current._write_newick(time_tree=time_tree)
+            newick += add_to_newick_dict(current, curr_newick)
+        elif number_of_children == number_of_child_newicks:
+            # all children have been processed
+            curr_newick = current._write_newick(time_tree=time_tree, subtrees=child_newicks)
+            # add the newick string to the parent and if there is no parent
+            # i.e. we have the root, then we can just write the newick string
+            newick += add_to_newick_dict(current, curr_newick)
+        else:
+            # not all children have been processed
+            # this node can't be processed yet, so push it back onto the stack
+            stack.append(current)
+            # then push all children onto the stack so the children are above current node
+            for child in current.children:
+                stack.append(child)
+    return newick
+
 
 
