@@ -110,7 +110,6 @@ def non_gc_population_control(current_generation):
 
 
 def simulate(clone_id, TARGET_PAIR, gc_start_generation, root, time=0):
-    bar = tqdm(total=s.END_TIME-1, initial=0, desc=f"Clone {clone_id}", position=clone_id, leave=True)
     dev_data_rows = []
     pop_data_rows = []
     naive = root.cell
@@ -189,6 +188,7 @@ def simulate(clone_id, TARGET_PAIR, gc_start_generation, root, time=0):
 
         return new_generation
     
+    bar = tqdm(total=s.END_TIME-1, initial=0, desc=f"Clone {clone_id}", position=clone_id, leave=True)
     while time<s.END_TIME:
         for location in locations:
             location.current_generation = make_new_generation(location)
@@ -240,6 +240,7 @@ def simulate(clone_id, TARGET_PAIR, gc_start_generation, root, time=0):
     df = pd.DataFrame(dev_data_rows)
     pop_data = pd.DataFrame(pop_data_rows)
     pop_data["clone_id"] = clone_id
+
     bar.bar_format = "{desc}: |{bar}| {n}/{total} in {elapsed}"
     bar.refresh()
     bar.close()
@@ -292,6 +293,8 @@ def run_simulation(i, result_dir):
     simplified_tree = simplify_tree(pruned)
     simplified_tree_newick = f'({simplified_tree.write_newick()});'
     simplified_time_tree_newick = f'({simplified_tree.write_newick(time_tree=True)});'
+
+    # TODO (jf): clean up dev code and logging with new tree options
     if s.DEV:
         with open(result_dir + "/all_samples.fasta", "w") as f:
             f.write(fasta_string)
