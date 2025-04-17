@@ -29,7 +29,8 @@ import numpy as np
 import pandas as pd
 from tqdm import tqdm
 
-from .helper import make_all_plots
+from .helper import (ALL_TREE_NAMES, MEMORY_SAVE_TREE_NAMES, TREE_NAMES,
+                     make_all_plots)
 from .location import as_enum
 from .parsing import get_parser, validate_and_process_args
 from .settings import s
@@ -108,16 +109,17 @@ def process_results(results):
         grouped = df.groupby(['time']).mean().reset_index()
         make_all_plots(grouped, s.RESULTS_DIR, True)
 
-    nexus = "#NEXUS\n" + "BEGIN TREES;\n"
+    tree_names = MEMORY_SAVE_TREE_NAMES if s.MEMORY_SAVE else ALL_TREE_NAMES if s.KEEP_FULL_TREE else TREE_NAMES
+    nexus = ["#NEXUS\n" + "BEGIN TREES;\n" for _ in tree_names]
+
     for clone in results:
-        # nexus += f'\tTree true_tree_{clone["clone_id"]} = {clone["true_tree"]}\n'
-        nexus += f'\tTree pruned_tree_{clone["clone_id"]} = {clone["pruned_tree"]}\n'
-        nexus += f'\tTree pruned_time_tree_{clone["clone_id"]} = {clone["pruned_time_tree"]}\n'
-        nexus += f'\tTree simplified_genetic_distance_tree_{clone["clone_id"]} = {clone["simplified_tree"]}\n'
-        nexus += f'\tTree simplified_time_tree_{clone["clone_id"]} = {clone["simplified_time_tree"]}\n'
-    nexus += "END;\n"
-    with open(s.RESULTS_DIR + "/all_trees.nex", "w") as f:
-        f.write(nexus)
+        for i, tree_name in enumerate(tree_names):
+            nexus[i] += f'\tTree {clone["clone_id"]} = {clone[tree_name]}\n'
+
+    for i, tree_name in enumerate(tree_names):
+        nexus[i] += "END;\n"
+        with open(s.RESULTS_DIR + f"/all_{tree_name}s.nex", "w") as f:
+            f.write(nexus[i])
     
     targets = pd.DataFrame(all_results["targets"])
     targets.to_csv(s.RESULTS_DIR + "/all_targets.csv", index=False)
