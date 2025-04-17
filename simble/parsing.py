@@ -84,6 +84,14 @@ def get_parser():
                          help="seed to seed the random number generators",
                          type=int,
                          default=None)
+    program.add_argument("--memory-save", 
+                         dest="memory_save", 
+                         help="save memory by only using simplified trees", 
+                         action="store_true")
+    program.add_argument("--full-tree", 
+                         dest="keep_full_tree", 
+                         help="keep the full trees, including non-sampled tips and their ancestors", 
+                         action="store_true")
 
     sampling.add_argument("-s", "--samples", 
                           dest="sample_info", 
@@ -234,6 +242,10 @@ def validate_and_process_args(args):
     if args.migration_rate:
         s.LOCATIONS[0].migration_rate = args.migration_rate
 
+    if args.memory_save and args.keep_full_tree:
+        warnings.append("Memory save and full tree options are incompatible. Using memory save.")
+        args.keep_full_tree = False
+
     _update_setting("MULTIPLIER", args.multiplier)
     _update_setting("HEAVY_MUTATE_PROBABILITY", args.heavy_mutate_probability)
     _update_setting("LIGHT_MUTATE_PROBABILITY", args.light_mutate_probability)
@@ -246,6 +258,8 @@ def validate_and_process_args(args):
     _update_setting("FWR_DIST", args.fwr_dist)
     _update_setting("FWR_VAR", args.fwr_var)
     _update_setting("MAX_POPULATION", args.antigen)
+    _update_setting("MEMORY_SAVE", args.memory_save)
+    _update_setting("KEEP_FULL_TREE", args.keep_full_tree)
 
     if args.sample_size:
         s.LOCATIONS[0].sample_size = args.sample_size
