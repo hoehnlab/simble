@@ -39,6 +39,10 @@ AIRR_FIELDS_TO_GENERATE = ['sequence_id', 'sequence', 'sequence_alignment', 'ger
 
 AIRR_FIELDS_TO_KEEP = [x for x in AIRR_REQUIRED_FIELDS if x not in AIRR_FIELDS_TO_GENERATE]
 
+ALL_TREE_NAMES = ["full_tree", "pruned_tree", "pruned_time_tree", "simplified_tree", "simplified_time_tree"]
+TREE_NAMES = ["pruned_tree", "pruned_time_tree", "simplified_tree", "simplified_time_tree"]
+MEMORY_SAVE_TREE_NAMES = ["simplified_tree", "simplified_time_tree"]
+
 def read_sf5_table(filename):
     data = pd.read_csv(filename, header=0)
     data.fillna(0, inplace=True)
