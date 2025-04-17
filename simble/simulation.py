@@ -287,6 +287,7 @@ def run_simulation(i, result_dir):
         pruned_time_tree = f'({pruned.write_newick(time_tree=True)});'
     else:
         newick = ""
+        pruned = root
         pruned_newick = f'({root.write_newick()});'
         pruned_time_tree = f'({root.write_newick(time_tree=True)});'
 
