@@ -92,10 +92,6 @@ class Node:
             self.occupancy_time = 1
         return self.occupancy_time
 
-    def simplify_subtree(self):
-        new_tree = _remove_non_splitting_nodes(self)
-        return new_tree
-    
     def prune_subtree(self, to_keep):
         new_tree = _build_tree_to_keep(self, to_keep)
         return new_tree
@@ -131,21 +127,6 @@ def _build_tree_to_keep(node, to_keep):
         return new_node
 
 
-def _remove_non_splitting_nodes(node, time_since_last_split=0, heavy_mutations_since_last_split=0, light_mutations_since_last_split=0):
-    node.get_occupancy_time()
-    new_node = node.copy()
-    new_node.time_since_last_split = time_since_last_split+1
-    new_node.heavy_mutations += heavy_mutations_since_last_split
-    new_node.light_mutations += light_mutations_since_last_split
-    if len(node.children) == 1:
-        child = node.children[0]
-        return _remove_non_splitting_nodes(child, new_node.time_since_last_split, new_node.heavy_mutations, new_node.light_mutations)
-    else:
-        for child in node.children:
-            new_child = _remove_non_splitting_nodes(child)
-            if new_child is not None:
-                new_node.add_child(new_child)
-        return new_node
 def _write_newick_iteratively(tree, time_tree=False):
     stack = [tree]
     children_newick = {}
