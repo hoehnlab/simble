@@ -23,7 +23,7 @@ import os
 import tempfile
 import time
 from functools import partial
-from multiprocessing import Pool
+from multiprocessing import Pool, Queue, Process
 
 import numpy as np
 import pandas as pd
@@ -37,6 +37,49 @@ from .settings import s
 from .simulation import run_simulation
 
 logger = logging.getLogger(__package__)
+
+def listener_configurer():
+    if s.DEV:
+        logger.setLevel(logging.DEBUG)
+        log_format = '%(asctime)s %(process)d \t%(levelname)s: %(message)s'
+    elif s.VERBOSE:
+        logger.setLevel(logging.INFO)
+        log_format = '%(asctime)s %(levelname)s: %(message)s'
+    else:
+        logger.setLevel(logging.WARNING)
+        log_format = '%(levelname)s: %(message)s'
+    
+    # handler = TqdmLoggingHandler()
+    # queue_handler = logging.handlers.QueueHandler(Queue(-1))
+    handler = logging.StreamHandler()
+    formatter=logging.Formatter(log_format, datefmt='%H:%M:%S')
+    handler.setFormatter(formatter)
+    logger.addHandler(handler)
+
+# This is the listener process top-level loop: wait for logging events
+# (LogRecords)on the queue and handle them, quit when you get a None for a
+# LogRecord.
+def listener_process(queue, configurer):
+    configurer()
+    while True:
+        try:
+            record = queue.get()
+            if record is None:  # We send this as a sentinel to tell the listener to quit.
+                break
+            logger = logging.getLogger(record.name)
+            logger.handle(record)  # No level or filter logic applied - just do it!
+        except Exception:
+            import sys, traceback
+            print('Whoops! Problem:', file=sys.stderr)
+            traceback.print_exc(file=sys.stderr)
+
+def worker_configurer(queue):
+    h = logging.handlers.QueueHandler(queue)  # Just the one handler needed
+    root = logging.getLogger()
+    root.addHandler(h)
+    # send all messages, for demo; no other level or filter logic applied.
+    root.setLevel(logging.DEBUG)
+
 
 class TqdmLoggingHandler(logging.Handler):
     def __init__(self, level=logging.NOTSET):
@@ -69,12 +112,14 @@ def set_logger():
 
 
 
-def do_simulation(i, seed, filename):
+def do_simulation(i, seed, filename, queue, configurer):
+    configurer(queue)
     with open(filename, "r") as f:
         settings = json.load(f, object_hook=as_enum)
     s.update_from_dict(settings)
     s._RNG = np.random.default_rng(seed)
-    set_logger()
+    configurer(queue)
+    # set_logger()
     logger.info(f"Starting simulation {i}")
     folder = s.RESULTS_DIR
     curr_results = f'{folder}/results{i}/'
@@ -143,6 +188,10 @@ def main():
         ss = np.random.SeedSequence()
     seeds = ss.spawn(args.n)
     print(f"Seed: {ss.entropy}")
+    queue = Queue(-1)
+    listener = multiprocessing.Process(target=listener_process,
+                                       args=(queue, listener_configurer))
+    listener.start()
 
     with tempfile.NamedTemporaryFile(mode="w") as tmpf:
         json.dump(s, tmpf, default=lambda o: o.encode(), indent=4)
