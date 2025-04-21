@@ -18,6 +18,8 @@
  """
 import logging
 
+from simble.location import LocationName
+
 logger = logging.getLogger(__package__)
 
 class Node:
@@ -31,8 +33,28 @@ class Node:
         self.generation=generation
         self.clone_id=clone_id if clone_id else parent.clone_id if parent else -1
         self.sampled_time = None
-        self.occupancy_time = None
         self.time_since_last_split = None
+        self.time_since_last_migration = None
+
+    @property
+    def occupancy(self):
+        if self.parent is None:
+            return 0
+        if self.time_since_last_split is None:
+            return 1
+        if self.time_since_last_migration is None:
+            return 1
+        return min(self.time_since_last_migration / self.time_since_last_split, 1)
+        
+    @property
+    def occupancy_other(self):
+        if self.cell.location is None:
+            return 0
+        if self.cell.location.name == LocationName.OTHER:
+            return self.occupancy
+        else:
+            return 1 - self.occupancy
+
     
     def add_child(self, child):
         child.parent = self
@@ -44,10 +66,9 @@ class Node:
     def _write_newick(self, time_tree=False, subtrees=None, recursion=False):
         name = f"{str(self.clone_id)}_{str(id(self.cell))}"
         labels= f"cell_id={str(self.clone_id)}_{str(id(self.cell))},location={self.cell.location.value},generation={self.generation}"
-        if self.occupancy_time is not None:
-            labels += f",occupancy_time={self.occupancy_time}"
-            if self.time_since_last_split is not None:
-                labels += f",occupancy={self.occupancy_time/self.time_since_last_split}"
+        if self.time_since_last_migration is not None:
+            # if none, it means we haven't processed the tree correctly to get the occupancy calc
+            labels += f",occupancy={self.occupancy},occupancy_other={self.occupancy_other}"
         if time_tree:
             branch_length = str(self.time_since_last_split) if self.time_since_last_split is not None else str(1)
         else:
@@ -75,22 +96,10 @@ class Node:
             clone_id=self.clone_id
         )
         new.antigen = self.antigen
-        new.occupancy_time = self.occupancy_time
+        # new.occupancy_time = self.occupancy_time
         new.time_since_last_split = self.time_since_last_split
+        new.time_since_last_migration = self.time_since_last_migration
         return new
-    
-    def get_occupancy_time(self):
-        if self.occupancy_time is not None:
-            return self.occupancy_time
-        if self.parent is None:
-            self.occupancy_time = 0
-        elif self.cell.location is None or self.parent.cell.location is None:
-            self.occupancy_time = 0
-        elif self.cell.location == self.parent.cell.location:
-            self.occupancy_time = self.parent.get_occupancy_time()+1
-        else:
-            self.occupancy_time = 1
-        return self.occupancy_time
 
     def prune_subtree(self, to_keep):
         new_tree = _build_tree_to_keep(self, to_keep)
@@ -170,12 +179,15 @@ def _write_newick_iteratively(tree, time_tree=False):
 
 
 def simplify_tree(root):
-    root.get_occupancy_time()
+    root.time_since_last_migration = 0
     new_root = root.copy()
     subtrees = [(new_root, child, 0, 0, 0) for child in root.children]
     while len(subtrees) > 0:
         parent, current_node, time_since_last_split, heavy_mutations_since_last_split, light_mutations_since_last_split = subtrees.pop(0)
-        current_node.get_occupancy_time()
+        if parent.cell.location.name == current_node.cell.location.name:
+            current_node.time_since_last_migration = parent.time_since_last_migration+1
+        else:
+            current_node.time_since_last_migration = 0
         if len(current_node.children) == 1:
             # we're removing this node
             child = current_node.children[0]
