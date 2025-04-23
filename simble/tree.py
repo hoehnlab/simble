@@ -33,18 +33,27 @@ class Node:
         self.generation=generation
         self.clone_id=clone_id if clone_id else parent.clone_id if parent else -1
         self.sampled_time = None
-        self.time_since_last_split = None
-        self.time_since_last_migration = None
+        self.last_migration = None
+        if self.parent is not None:
+            self.last_migration = self.parent.last_migration
+
+    @property
+    def time_since_last_split(self):
+        if self.parent is None:
+            return 0
+        return self.generation - self.parent.generation
 
     @property
     def occupancy(self):
         if self.parent is None:
             return 0
-        if self.time_since_last_split is None:
+        if self.last_migration is None:
+            # no migration events have happened, so we've always been in this state
             return 1
-        if self.time_since_last_migration is None:
-            return 1
-        return min(self.time_since_last_migration / self.time_since_last_split, 1)
+
+        time_since_migration = self.generation - self.last_migration
+        branch_time = self.generation - self.parent.generation
+        return min(time_since_migration / branch_time, 1)
         
     @property
     def occupancy_other(self):
@@ -66,11 +75,9 @@ class Node:
     def _write_newick(self, time_tree=False, subtrees=None, recursion=False):
         name = f"{str(self.clone_id)}_{str(id(self.cell))}"
         labels= f"cell_id={str(self.clone_id)}_{str(id(self.cell))},location={self.cell.location.value},generation={self.generation}"
-        if self.time_since_last_migration is not None:
-            # if none, it means we haven't processed the tree correctly to get the occupancy calc
-            labels += f",occupancy={self.occupancy},occupancy_other={self.occupancy_other}"
+        labels += f",occupancy={self.occupancy},occupancy_other={self.occupancy_other}"
         if time_tree:
-            branch_length = str(self.time_since_last_split) if self.time_since_last_split is not None else str(1)
+            branch_length = str(self.time_since_last_split)
         else:
             branch_length = str(self.heavy_mutations+self.light_mutations)
         branch = f':{branch_length}'
@@ -96,9 +103,7 @@ class Node:
             clone_id=self.clone_id
         )
         new.antigen = self.antigen
-        # new.occupancy_time = self.occupancy_time
-        new.time_since_last_split = self.time_since_last_split
-        new.time_since_last_migration = self.time_since_last_migration
+        new.last_migration = self.last_migration
         return new
 
     def prune_subtree(self, to_keep):
@@ -179,30 +184,24 @@ def _write_newick_iteratively(tree, time_tree=False):
 
 
 def simplify_tree(root):
-    root.time_since_last_migration = 0
     new_root = root.copy()
-    subtrees = [(new_root, child, 0, 0, 0) for child in root.children]
+    subtrees = [(new_root, child, 0, 0) for child in root.children]
     while len(subtrees) > 0:
-        parent, current_node, time_since_last_split, heavy_mutations_since_last_split, light_mutations_since_last_split = subtrees.pop(0)
-        if parent.cell.location.name == current_node.cell.location.name:
-            current_node.time_since_last_migration = parent.time_since_last_migration+1
-        else:
-            current_node.time_since_last_migration = 0
+        parent, current_node, heavy_mutations_since_last_split, light_mutations_since_last_split = subtrees.pop(0)
         if len(current_node.children) == 1:
             # we're removing this node
             child = current_node.children[0]
             heavy_mutations_since_last_split += current_node.heavy_mutations
             light_mutations_since_last_split += current_node.light_mutations
-            subtrees.append((parent, child, time_since_last_split+1, heavy_mutations_since_last_split, light_mutations_since_last_split))
+            subtrees.append((parent, child, heavy_mutations_since_last_split, light_mutations_since_last_split))
         else:
             # we're keeping this node
             new_node = current_node.copy()
-            new_node.time_since_last_split = time_since_last_split+1
             new_node.heavy_mutations += heavy_mutations_since_last_split
             new_node.light_mutations += light_mutations_since_last_split
             parent.add_child(new_node)
             for child in current_node.children:
-                subtrees.append((new_node, child, 0, 0, 0))
+                subtrees.append((new_node, child, 0, 0))
     return new_root
 
 

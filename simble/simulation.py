@@ -95,6 +95,9 @@ def do_differentiation(location, time):
         current_generation = [x for x in current_generation if x not in pcs]
         [pc.cell.differentiate(CellType.PC) for pc in pcs]
         to_migrate.extend(pcs)
+
+    for node in to_migrate:
+        node.last_migration = time
     return to_migrate
 
 def non_gc_population_control(current_generation):
