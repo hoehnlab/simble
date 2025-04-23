@@ -92,6 +92,10 @@ def get_parser():
                          dest="keep_full_tree", 
                          help="keep the full trees, including non-sampled tips and their ancestors", 
                          action="store_true")
+    program.add_argument("-q", "--quiet", 
+                         dest="quiet", 
+                         help="don't display progress bar", 
+                         action="store_true")
 
     sampling.add_argument("-s", "--samples", 
                           dest="sample_info", 
@@ -260,6 +264,7 @@ def validate_and_process_args(args):
     _update_setting("MAX_POPULATION", args.antigen)
     _update_setting("MEMORY_SAVE", args.memory_save)
     _update_setting("KEEP_FULL_TREE", args.keep_full_tree)
+    _update_setting("QUIET", args.quiet)
 
     if args.sample_size:
         s.LOCATIONS[0].sample_size = args.sample_size

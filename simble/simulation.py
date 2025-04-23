@@ -191,7 +191,7 @@ def simulate(clone_id, TARGET_PAIR, gc_start_generation, root, time=0):
 
         return new_generation
     
-    bar = tqdm(total=s.END_TIME-1, initial=0, desc=f"Clone {clone_id}", position=clone_id, leave=True)
+    bar = tqdm(total=s.END_TIME-1, initial=0, desc=f"Clone {clone_id}", position=clone_id, leave=True, disable=s.QUIET)
     while time<s.END_TIME:
         for location in locations:
             location.current_generation = make_new_generation(location)

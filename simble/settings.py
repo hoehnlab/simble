@@ -93,6 +93,7 @@ class Settings(Encodable):
         self.GENERATIONS_PER_DAY = 0.5
         self.MEMORY_SAVE = False
         self.KEEP_FULL_TREE = False
+        self.QUIET = False
 
     @property
     def END_TIME(self):
