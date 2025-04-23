@@ -280,20 +280,20 @@ def run_simulation(i, result_dir):
         pruned_time_tree = ""
         pruned = root
     elif s.KEEP_FULL_TREE:
-        newick = f'({root.write_newick()});'
+        newick = f'{root.write_newick()};'
         # TODO (jf): add an interative function that can prune the tree
         pruned = root.prune_subtree(sampled_ids)
-        pruned_newick = f'({pruned.write_newick()});'
-        pruned_time_tree = f'({pruned.write_newick(time_tree=True)});'
+        pruned_newick = f'{pruned.write_newick()};'
+        pruned_time_tree = f'{pruned.write_newick(time_tree=True)};'
     else:
         newick = ""
         pruned = root
-        pruned_newick = f'({root.write_newick()});'
-        pruned_time_tree = f'({root.write_newick(time_tree=True)});'
+        pruned_newick = f'{root.write_newick()};'
+        pruned_time_tree = f'{root.write_newick(time_tree=True)};'
 
     simplified_tree = simplify_tree(pruned)
-    simplified_tree_newick = f'({simplified_tree.write_newick()});'
-    simplified_time_tree_newick = f'({simplified_tree.write_newick(time_tree=True)});'
+    simplified_tree_newick = f'{simplified_tree.write_newick()};'
+    simplified_time_tree_newick = f'{simplified_tree.write_newick(time_tree=True)};'
 
     # TODO (jf): clean up dev code and logging with new tree options
     if s.DEV:
