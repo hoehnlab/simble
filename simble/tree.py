@@ -36,6 +36,7 @@ class Node:
         self.last_migration = None
         if self.parent is not None:
             self.last_migration = self.parent.last_migration
+        self.identical_children = 0
 
     @property
     def time_since_last_split(self):
@@ -65,9 +66,20 @@ class Node:
             return 1 - self.occupancy
 
     
+    def _propogate_identical_children_count(self):
+        if self.cell.location.name == LocationName.OTHER:
+            # TODO(jf): change this if we change the way we handle
+            # reproduction in the other tissue
+            return
+        self.identical_children += 1
+        if self.parent is not None and self.heavy_mutations == 0 and self.light_mutations == 0:
+            self.parent._propogate_identical_children_count()
+
     def add_child(self, child):
         child.parent = self
         self.children.append(child)
+        if child.heavy_mutations == 0 and child.light_mutations == 0:
+            self._propogate_identical_children_count()
 
     def write_newick(self, time_tree=False):
         return _write_newick_iteratively(self, time_tree=time_tree)
@@ -75,7 +87,7 @@ class Node:
     def _write_newick(self, time_tree=False, subtrees=None, recursion=False):
         name = f"{str(self.clone_id)}_{str(id(self.cell))}"
         labels= f"cell_id={str(self.clone_id)}_{str(id(self.cell))},location={self.cell.location.value},generation={self.generation}"
-        labels += f",occupancy={self.occupancy},occupancy_other={self.occupancy_other}"
+        labels += f",occupancy={self.occupancy},occupancy_other={self.occupancy_other},identical_children={self.identical_children},antigen={self.antigen}"
         if time_tree:
             branch_length = str(self.time_since_last_split)
         else:
