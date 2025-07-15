@@ -39,6 +39,7 @@ from .simulation import run_simulation
 logger = logging.getLogger(__package__)
 
 class TqdmLoggingHandler(logging.Handler):
+    """Custom logging handler to write logs to tqdm output."""
     def __init__(self, level=logging.NOTSET):
         super().__init__(level)
 
@@ -51,6 +52,7 @@ class TqdmLoggingHandler(logging.Handler):
             self.handleError(record)
 
 def set_logger():
+    """Sets up the logger for the simulation."""
     if s.DEV:
         logger.setLevel(logging.DEBUG)
         log_format = '%(asctime)s %(process)d \t%(levelname)s: %(message)s'
@@ -60,7 +62,7 @@ def set_logger():
     else:
         logger.setLevel(logging.WARNING)
         log_format = '%(levelname)s: %(message)s'
-    
+
     handler = TqdmLoggingHandler()
     formatter=logging.Formatter(log_format, datefmt='%H:%M:%S')
     handler.setFormatter(formatter)
@@ -70,12 +72,13 @@ def set_logger():
 
 
 def do_simulation(i, seed, filename):
-    with open(filename, "r") as f:
+    """Runs a single simulation with the given seed and settings."""
+    with open(filename, "r", encoding="utf-8") as f:
         settings = json.load(f, object_hook=as_enum)
     s.update_from_dict(settings)
-    s._RNG = np.random.default_rng(seed)
+    s._RNG = np.random.default_rng(seed) # pylint: disable=protected-access
     set_logger()
-    logger.info(f"Starting simulation {i}")
+    logger.info("Starting simulation %s", i)
     folder = s.RESULTS_DIR
     curr_results = f'{folder}/results{i}/'
     if s.DEV and not os.path.exists(curr_results):
@@ -84,18 +87,19 @@ def do_simulation(i, seed, filename):
     data = run_simulation(i, curr_results)
     end = time.time()
 
-    logger.debug(f"Time taken: {end-start}")
+    logger.debug("Time taken: %s", end - start)
     return data
 
 
 def process_results(results):
+    """Processes the results of the simulations and saves them to files."""
     all_results = {}
     for key in results[0].keys():
         all_results[key] = [x[key] for x in results]
 
     if s.FASTA:
         fasta_string = "\n".join(all_results["fasta"])
-        with open(s.RESULTS_DIR + "/all_samples.fasta", "w") as f:
+        with open(s.RESULTS_DIR + "/all_samples.fasta", "w", encoding="utf-8") as f:
             f.write(fasta_string)
     airr = pd.concat(all_results["airr"])
     airr["d_germline_start"] = airr["d_germline_start"].astype(pd.Int64Dtype())
@@ -109,7 +113,12 @@ def process_results(results):
         grouped = df.groupby(['time']).mean().reset_index()
         make_all_plots(grouped, s.RESULTS_DIR, True)
 
-    tree_names = MEMORY_SAVE_TREE_NAMES if s.MEMORY_SAVE else ALL_TREE_NAMES if s.KEEP_FULL_TREE else TREE_NAMES
+    if s.MEMORY_SAVE:
+        tree_names = MEMORY_SAVE_TREE_NAMES
+    elif s.KEEP_FULL_TREE:
+        tree_names = ALL_TREE_NAMES
+    else:
+        tree_names = TREE_NAMES
     nexus = ["#NEXUS\n" + "BEGIN TREES;\n" for _ in tree_names]
 
     for clone in results:
@@ -118,14 +127,15 @@ def process_results(results):
 
     for i, tree_name in enumerate(tree_names):
         nexus[i] += "END;\n"
-        with open(s.RESULTS_DIR + f"/all_{tree_name}s.nex", "w") as f:
+        with open(s.RESULTS_DIR + f"/all_{tree_name}s.nex", "w", encoding="utf-8") as f:
             f.write(nexus[i])
-    
+
     targets = pd.DataFrame(all_results["targets"])
     targets.to_csv(s.RESULTS_DIR + "/all_targets.csv", index=False)
 
 
 def main():
+    """ Main function to run the simulation. """
     parser = get_parser()
 
     args = parser.parse_args()
@@ -136,7 +146,6 @@ def main():
         logger.warning(warning)
 
     if args.seed is not None:
-        # TODO: fix input for seeds
         seed = args.seed
         ss = np.random.SeedSequence(seed)
     else:
@@ -148,16 +157,21 @@ def main():
         json.dump(s, tmpf, default=lambda o: o.encode(), indent=4)
         tmpf.flush()
         start = time.time()
-        logger.info(f"Starting simulation")
+        logger.info("Starting simulation")
         if args.processes > 1:
             with Pool(processes=args.processes) as pool:
-                result = pool.starmap(partial(do_simulation, filename=tmpf.name), zip(range(args.n), seeds))
+                result = pool.starmap(
+                    partial(do_simulation, filename=tmpf.name),
+                    zip(range(args.n), seeds)
+                    )
         else:
             result = []
             for i in range(args.n):
-                result.append(do_simulation(i, seeds[i], tmpf.name))
+                result.append(
+                    do_simulation(i, seeds[i], tmpf.name)
+                    )
 
     process_results(result)
 
     end = time.time()
-    logger.debug(f"Program finished! Total time taken: {end-start}")
+    logger.debug("Program finished! Total time taken: %s", end-start)

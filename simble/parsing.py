@@ -26,11 +26,17 @@ from .settings import s
 
 
 def get_parser():
-    # TODO(jf): reorder arguments, rename as needed
+    """Creates and returns an argument parser for the simble program.
+    Returns:
+        argparse.ArgumentParser: The argument parser for the simble program.
+    """
     parser = argparse.ArgumentParser(
         prog="simble",
         formatter_class=argparse.RawDescriptionHelpFormatter,
-        description="somewhat improved model of B-cell lineage evolution \n\nsource code available at: www.github.com/hoehnlab/simble",
+        description=(
+            "somewhat improved model of B-cell lineage evolution \n\n"
+            "source code available at: www.github.com/hoehnlab/simble"
+            ),
         epilog="It's that simble!"
         )
     program = parser.add_argument_group(
@@ -42,78 +48,81 @@ def get_parser():
         "simulation model settings", 
         description="e.g. mutation probabilities or whether to run neutral simulation"
         )
-    
+
     sampling = parser.add_argument_group("sampling settings")
 
-    program.add_argument("-v", "--verbose", 
-                         dest="verbose", 
-                         help="verbose output", 
+    program.add_argument("-v", "--verbose",
+                         dest="verbose",
+                         help="verbose output",
                          action="store_true")
-    program.add_argument("-o", "--output", 
-                         dest="results", 
-                         help="absolute path to output directory", 
-                         metavar="DIR", 
+    program.add_argument("-o", "--output",
+                         dest="results",
+                         help="absolute path to output directory",
+                         metavar="DIR",
                          type=str)
-    program.add_argument("-n", "--num", 
-                         dest="n", 
-                         help="number of simulations to run", 
-                         type=int, 
+    program.add_argument("-n", "--num",
+                         dest="n",
+                         help="number of simulations to run",
+                         type=int,
                          default=1)
-    program.add_argument("-p", "--processes", 
-                         dest="processes", 
-                         metavar="P", 
-                         help="number of processes to run", 
-                         type=int, 
+    program.add_argument("-p", "--processes",
+                         dest="processes",
+                         metavar="P",
+                         help="number of processes to run",
+                         type=int,
                          default=1)
-    program.add_argument("--dev", 
-                         dest="dev", 
-                         help="development mode", 
+    program.add_argument("--dev",
+                         dest="dev",
+                         help="development mode",
                          action="store_true")
-    program.add_argument("--fasta", 
-                         dest="fasta", 
-                         help="output as fasta", 
+    program.add_argument("--fasta",
+                         dest="fasta",
+                         help="output as fasta",
                          action="store_true")
-    program.add_argument("--config", 
+    program.add_argument("--config",
                          dest="config",
-                         help="untested! path to config file, will be overwritten by command line arguments",
+                         help=(
+                             "untested! path to config file, will be overwritten "
+                             "by command line arguments"
+                             ),
                          metavar="FILE",
                          type=str,
                          default=None)
-    program.add_argument("--seed", 
+    program.add_argument("--seed",
                          dest="seed",
                          help="seed to seed the random number generators",
                          type=int,
                          default=None)
-    program.add_argument("--memory-save", 
-                         dest="memory_save", 
-                         help="save memory by only using simplified trees", 
+    program.add_argument("--memory-save",
+                         dest="memory_save",
+                         help="save memory by only using simplified trees",
                          action="store_true")
-    program.add_argument("--full-tree", 
-                         dest="keep_full_tree", 
-                         help="keep the full trees, including non-sampled tips and their ancestors", 
+    program.add_argument("--full-tree",
+                         dest="keep_full_tree",
+                         help="keep the full trees, including non-sampled tips and their ancestors",
                          action="store_true")
-    program.add_argument("-q", "--quiet", 
-                         dest="quiet", 
-                         help="don't display progress bar", 
+    program.add_argument("-q", "--quiet",
+                         dest="quiet",
+                         help="don't display progress bar",
                          action="store_true")
 
-    sampling.add_argument("-s", "--samples", 
-                          dest="sample_info", 
-                          metavar=("start", "stop", "step"), 
-                          help="specify sample times other than the default", 
-                          nargs=3, 
-                          default=None, 
+    sampling.add_argument("-s", "--samples",
+                          dest="sample_info",
+                          metavar=("start", "stop", "step"),
+                          help="specify sample times other than the default",
+                          nargs=3,
+                          default=None,
                           type=int)
-    sampling.add_argument("--other-samples", 
-                          dest="other_sample_info", 
-                          metavar=("start", "stop", "step"), 
-                          help="specify sample times for only the 'Other' location", 
-                          nargs=3, 
+    sampling.add_argument("--other-samples",
+                          dest="other_sample_info",
+                          metavar=("start", "stop", "step"),
+                          help="specify sample times for only the 'Other' location",
+                          nargs=3,
                           default=None)
-    sampling.add_argument("--sample-size", 
-                          dest="sample_size", 
-                          metavar="N", 
-                          help="specify sample size for 'GC' location", 
+    sampling.add_argument("--sample-size",
+                          dest="sample_size",
+                          metavar="N",
+                          help="specify sample size for 'GC' location",
                           default=None,
                           type=int)
     sampling.add_argument("--sample-size-other",
@@ -123,84 +132,95 @@ def get_parser():
                          default=None,
                          type=int)
 
-    model.add_argument("--neutral", 
-                       dest="neutral", 
-                       help="neutral simulation (no selection in germinal center)", 
+    model.add_argument("--neutral",
+                       dest="neutral",
+                       help="neutral simulation (no selection in germinal center)",
                        action="store_true")
-    model.add_argument("-a", "--antigen", 
-                       dest="antigen", 
-                       help="amount of antigen", 
-                       metavar="A", 
-                       default=None, 
-                       type=int)
-    model.add_argument("-m", "--multiplier", 
-                       dest="multiplier", 
-                       help="selection multiplier", 
-                       metavar="M", 
-                       default=None, 
-                       type=int)
-    model.add_argument("--migration-rate", 
-                       dest="migration_rate", 
-                       help="migration rate from the GC (expected value of cells that migrate per generation)", 
-                       metavar="R", 
-                       default=None, 
-                       type=float)
-    model.add_argument("--heavy-mutate-probability", 
-                       dest="heavy_mutate_probability", 
-                       help="probability of heavy chain mutation", 
-                       metavar="P", 
-                       default=None, 
-                       type=float)
-    model.add_argument("--light-mutate-probability", 
-                       dest="light_mutate_probability", 
-                       help="probability of light chain mutation", 
-                       metavar="P", 
-                       default=None, 
-                       type=float)
-    model.add_argument("--target-mutations-heavy", 
-                       dest="target_mutations_heavy", 
-                       help="number of mutations in heavy chain target", 
-                       metavar="N", 
-                       default=None, 
-                       type=int)
-    model.add_argument("--target-mutations-light", 
-                       dest="target_mutations_light", 
-                       help="number of mutations in light chain target", 
-                       metavar="N", 
-                       default=None, 
-                       type=int)
-    model.add_argument("--cdr-dist", 
-                       dest="cdr_dist", 
-                       help="cdr distribution", 
+    model.add_argument("-a", "--antigen",
+                       dest="antigen",
+                       help="amount of antigen",
+                       metavar="A",
                        default=None,
-                       choices=["constant", "exponential"], 
-                       type=str)
-    model.add_argument("--cdr-var", 
-                       dest="cdr_var", 
-                       help="cdr variable", 
-                       metavar="V", 
-                       default=None, 
-                       type=float)
-    model.add_argument("--fwr-dist", 
-                       dest="fwr_dist", 
-                       help="fwr distribution", 
+                       type=int)
+    model.add_argument("-m", "--multiplier",
+                       dest="multiplier",
+                       help="selection multiplier",
+                       metavar="M",
                        default=None,
-                       choices=["constant", "exponential"], 
+                       type=int)
+    model.add_argument("--migration-rate",
+                       dest="migration_rate",
+                       help=(
+                           "migration rate from the GC (expected value of cells "
+                           "that migrate per generation)"
+                           ),
+                       metavar="R",
+                       default=None,
+                       type=float)
+    model.add_argument("--heavy-mutate-probability",
+                       dest="heavy_mutate_probability",
+                       help="probability of heavy chain mutation",
+                       metavar="P",
+                       default=None,
+                       type=float)
+    model.add_argument("--light-mutate-probability",
+                       dest="light_mutate_probability",
+                       help="probability of light chain mutation",
+                       metavar="P",
+                       default=None,
+                       type=float)
+    model.add_argument("--target-mutations-heavy",
+                       dest="target_mutations_heavy",
+                       help="number of mutations in heavy chain target",
+                       metavar="N",
+                       default=None,
+                       type=int)
+    model.add_argument("--target-mutations-light",
+                       dest="target_mutations_light",
+                       help="number of mutations in light chain target",
+                       metavar="N",
+                       default=None,
+                       type=int)
+    model.add_argument("--cdr-dist",
+                       dest="cdr_dist",
+                       help="cdr distribution",
+                       default=None,
+                       choices=["constant", "exponential"],
                        type=str)
-    model.add_argument("--fwr-var", 
-                       dest="fwr_var", 
-                       help="fwr variable", 
-                       metavar="V", 
-                       default=None, 
-                       type=float) 
+    model.add_argument("--cdr-var",
+                       dest="cdr_var",
+                       help="cdr variable",
+                       metavar="V",
+                       default=None,
+                       type=float)
+    model.add_argument("--fwr-dist",
+                       dest="fwr_dist",
+                       help="fwr distribution",
+                       default=None,
+                       choices=["constant", "exponential"],
+                       type=str)
+    model.add_argument("--fwr-var",
+                       dest="fwr_var",
+                       help="fwr variable",
+                       metavar="V",
+                       default=None,
+                       type=float)
 
     return parser
 
 def _update_setting(name, value):
+    """Updates a setting in the global settings object, leaving it unchanged 
+    if the value is None."""
     if value is not None:
         setattr(s, name, value)
 
 def validate_samples(sample_info):
+    """Validates the sampling settings.
+    Args:
+        sample_info (list): A list containing start, stop, and step values.
+    Raises:
+        ValueError: If the sampling setting is invalid.
+    """
     if sample_info[0] > sample_info[1]:
         raise ValueError("sample start must be less than or equal to stop")
     if sample_info[2] <= 0:
@@ -209,6 +229,12 @@ def validate_samples(sample_info):
         raise ValueError("sample step must be less than or equal to stop - start")
 
 def validate_and_process_args(args):
+    """Validates and processes command line arguments and updates the simulation settings.
+    Args:
+        args (argparse.Namespace): The parsed command line arguments.
+    Returns:
+        list: A list of warnings, if any.
+    """
     warnings = []
     if args.config is not None:
         # TODO(jf): validate that file exists
@@ -279,17 +305,29 @@ def validate_and_process_args(args):
 
 
 def validate_location(location):
+    """Validates a location dictionary.
+    Args:
+        location (dict): A dictionary representing a location.
+    Raises:
+        ValueError: If the location dictionary contains invalid fields or types.
+    """
     valid_fields = {x: type(y) for x, y in vars(s.LOCATIONS[0]).items() if not x.startswith("_")}
     for key, value in location.items():
         if key not in valid_fields:
             raise ValueError(f"invalid LOCATION field: {key}")
-        if type(value) != valid_fields[key]:
+        if not value.isinstance(valid_fields[key]):
             raise ValueError(f"invalid type for LOCATION field {key}: {type(value)}")
-        
-        
-def validate_json(json):
+
+
+def validate_json(json_input):
+    """Validates the JSON input against the global settings object.
+    Args:
+        json_input (dict): The JSON input to validate.
+    Raises:
+        ValueError: If the JSON input contains invalid fields or types.
+    """
     valid_fields = {x: type(y) for x, y in vars(s).items() if not x.startswith("_")}
-    for key, value in json.items():
+    for key, value in json_input.items():
         if key == "LOCATIONS":
             for location in value:
                 validate_location(location)
@@ -298,22 +336,29 @@ def validate_json(json):
         valid_type = valid_fields[key]
         if valid_type == int:
             # float is fine if it's actually an integer
-            if type(value) == float and value.is_integer():
+            if value.isinstance(float) and value.is_integer():
                 continue
-            if type(value) != valid_type:
+            if not value.isinstance(valid_type):
                 raise ValueError(f"invalid type for field {key}: {type(value)}")
         elif valid_type == float:
             # integer is fine for floats
-            if type(value) != valid_type and type(value) != int:
-                raise ValueError(f"invalid type for field {key}: {type(value)}")    
-        elif type(value) != valid_type:
+            if not value.isinstance(valid_type) and not value.isinstance(int):
+                raise ValueError(f"invalid type for field {key}: {type(value)}")
+        elif not value.isinstance(valid_type):
             raise ValueError(f"invalid type for field {key}: {type(value)}")
         if key == "CDR_DIST" or key == "FWR_DIST":
             if value not in ["constant", "exponential"]:
                 raise ValueError(f"invalid value for field {key}: {value}")
 
+
 def read_from_json(filename):
-    with open(filename, "r") as f:
+    """Reads a JSON file and returns its contents as a dictionary.
+    Args:
+        filename (str): The path to the JSON file.
+    Returns:
+        dict: The contents of the JSON file as a dictionary.
+    """
+    with open(filename, "r", encoding="utf-8") as f:
         data = json.load(f, object_hook=as_enum)
     validate_json(data)
     return data

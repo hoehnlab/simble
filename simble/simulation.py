@@ -16,6 +16,7 @@
  You should have received a copy of the GNU Affero General Public License
  along with simble.  If not, see <https://www.gnu.org/licenses/>.
  """
+# pylint: disable=expression-not-assigned
 
 import logging
 from collections import Counter
@@ -35,11 +36,18 @@ from .tree import Node, simplify_tree
 logger = logging.getLogger(__package__)
 
 def get_population_data(location, time):
+    """Calculates population data for a given location at a specific time.
+    Args:
+        location (Location): The location for which to calculate population data.
+        time (int): The current time in the simulation.
+    Returns:
+        dict: A dictionary containing population data, including the number of cells with children.
+    """
     population = len(location.current_generation)
 
     children_counter = Counter(location.number_of_children)
     children_dict = {
-        f"number_of_cells_with_{i}_children": children_counter[i] 
+        f"number_of_cells_with_{i}_children": children_counter[i]
         for i in range(1, 10)
         }
     pop_data = {
@@ -47,15 +55,34 @@ def get_population_data(location, time):
         "location": location.name.value,
         "population": population,
         "number_of_reproducing_cells": population - children_counter[0],
-        "average_affinity": np.mean([x.cell.affinity for x in location.current_generation]) if population > 0 else 0,
+        "average_affinity": np.mean(
+            [
+                x.cell.affinity
+                for x in location.current_generation
+                ]
+            ) if population > 0 else 0,
     }
     pop_data.update(children_dict)
     return pop_data
 
 def do_differentiation(location, time):
+    """Handles the differentiation of cells as they leave a location.
+    Currently, this is only implemented for the germinal center (GC) location.
+
+    Args:
+        location (Location): The germinal center location.
+        time (int): The current time in the simulation.
+    Returns:
+        list: A list of nodes that are migrating out of the germinal center.
+    """
     current_generation = location.current_generation
     to_migrate = []
-    migrate_size = min(int(s._RNG.poisson(location.settings.migration_rate)), len(current_generation)//2)
+    migrate_size = min(
+        int(
+            s._RNG.poisson(location.settings.migration_rate) # pylint: disable=protected-access
+            ),
+            len(current_generation)//2
+            )
     def get_mbc_pc_size(migrate_size, time):
         current_day = s.GENERATIONS_PER_DAY*time
         if current_day < 8:
@@ -73,13 +100,13 @@ def do_differentiation(location, time):
             pc_size = migrate_size
             mbc_size = 0
         return mbc_size, pc_size
-        
+
 
     mbc_size, pc_size = get_mbc_pc_size(migrate_size, time)
     if mbc_size > 0:
-        mbcs = s._RNG.choice(
-            current_generation, 
-            size=mbc_size, 
+        mbcs = s._RNG.choice( # pylint: disable=protected-access
+            current_generation,
+            size=mbc_size,
             replace=False)
         current_generation = [x for x in current_generation if x not in mbcs]
         [mbc.cell.differentiate(CellType.MBC) for mbc in mbcs]
@@ -87,8 +114,8 @@ def do_differentiation(location, time):
     if pc_size > 0:
         affinities = [x.cell.affinity for x in current_generation]
         p = np.array(affinities) / np.sum(affinities) if s.SELECTION else None
-        pcs = s._RNG.choice(
-            current_generation, 
+        pcs = s._RNG.choice( # pylint: disable=protected-access
+            current_generation,
             size=pc_size,
             p=p,
             replace=False)
@@ -101,9 +128,13 @@ def do_differentiation(location, time):
     return to_migrate
 
 def non_gc_population_control(current_generation):
-    # right now the other location will have no reproduction or death
-    # TODO: add a max population
-    # TODO: potentially tweak reproduction 
+    """Handles population control for non-GC locations.
+    Args:
+        current_generation (list): The current population in the non-GC location.
+    Returns:
+        list: A new generation of nodes, where each node is a child of the original nodes.
+    """
+    # TODO (jf): implement ability of other location to reproduce
     new_generation = []
     for node in current_generation:
         child_node = Node(node.cell.remake_self(), parent=node, generation=node.generation+1)
@@ -112,13 +143,23 @@ def non_gc_population_control(current_generation):
     return new_generation
 
 
-def simulate(clone_id, TARGET_PAIR, gc_start_generation, root, time=0):
+def simulate(clone_id, TARGET_PAIR, gc_start_generation, root, time=0): # pylint: disable=invalid-name
+    """Runs the simulation for a single clone.
+    Args:
+        clone_id (int): The ID of the clone.
+        TARGET_PAIR (TargetAminoPair): The target amino acid pair for the simulation.
+        gc_start_generation (list): The initial population in the germinal center.
+        root (Node): The root node of the simulation tree.
+        time (int): The current time in the simulation.
+    Returns:
+        tuple: A tuple containing the sampled nodes, population data, and development data.
+    """
     dev_data_rows = []
     pop_data_rows = []
     naive = root.cell
     locations = [Location(x.name, x) for x in s.LOCATIONS]
-    GC = [x for x in locations if x.name == LocationName.GC][0]
-    OTHER = [x for x in locations if x.name == LocationName.OTHER][0]
+    GC = [x for x in locations if x.name == LocationName.GC][0] # pylint: disable=invalid-name
+    OTHER = [x for x in locations if x.name == LocationName.OTHER][0] # pylint: disable=invalid-name
     GC.current_generation = gc_start_generation
     # fasta_string = naive.as_fasta(time)
     airr = []
@@ -128,19 +169,25 @@ def simulate(clone_id, TARGET_PAIR, gc_start_generation, root, time=0):
 
     def make_new_child(node):
         child_cell = Cell(
-            node.cell.heavy_chain.copy(), 
-            node.cell.light_chain.copy(), 
+            node.cell.heavy_chain.copy(),
+            node.cell.light_chain.copy(),
             location=node.cell.location,
             created_at=time)
         heavy_n, light_n = child_cell.mutate_cell()
-        child_node = Node(child_cell, parent=node, heavy_mutations=heavy_n, light_mutations=light_n, generation=node.generation+1)
+        child_node = Node(
+            child_cell,
+            parent=node,
+            heavy_mutations=heavy_n,
+            light_mutations=light_n,
+            generation=node.generation+1
+            )
         child_cell.calculate_affinity(TARGET_PAIR)
         node.add_child(child_node)
         return child_node
-        
+
 
     def make_new_generation(location):
-        new_generation = [] 
+        new_generation = []
 
         current_generation = location.current_generation
         if len(current_generation) == 0:
@@ -149,7 +196,7 @@ def simulate(clone_id, TARGET_PAIR, gc_start_generation, root, time=0):
         if location.name == LocationName.GC:
             to_migrate = do_differentiation(location, time)
         else:
-            # TODO: potentially allow other locations to migrate in the future
+            # potentially allow other locations to migrate in future versions of simble
             to_migrate = []
 
         current_generation = [x for x in current_generation if x not in to_migrate]
@@ -158,22 +205,22 @@ def simulate(clone_id, TARGET_PAIR, gc_start_generation, root, time=0):
             child_node = Node(node.cell.remake_self(), parent=node, generation=node.generation+1)
             node.add_child(child_node)
             OTHER.immigrating_population.append(child_node)
-        
+
         if location.name == LocationName.OTHER:
             new_generation = non_gc_population_control(current_generation)
             return new_generation
-            
+
         available_antigen = location.settings.max_population
 
         if s.SELECTION and location.name == LocationName.GC:
             affinities = [x.cell.affinity for x in current_generation]
             p = np.array(affinities) / np.sum(affinities)
-    
+
         else:
             p = None
-            
+
         for _ in range(available_antigen):
-            current_node = s._RNG.choice(
+            current_node = s._RNG.choice( # pylint: disable=protected-access
                 current_generation,
                 p=p
                 )
@@ -187,21 +234,28 @@ def simulate(clone_id, TARGET_PAIR, gc_start_generation, root, time=0):
             new_generation.extend(live_children)
             if node.antigen == 0 and (s.MEMORY_SAVE or not s.KEEP_FULL_TREE):
                 node.prune_up_tree()
-        
+
 
         return new_generation
-    
-    bar = tqdm(total=s.END_TIME-1, initial=0, desc=f"Clone {clone_id}", position=clone_id, leave=True, disable=s.QUIET)
+
+    progress_bar = tqdm(
+        total=s.END_TIME-1,
+        initial=0,
+        desc=f"Clone {clone_id}",
+        position=clone_id,
+        leave=True,
+        disable=s.QUIET
+        )
     while time<s.END_TIME:
         for location in locations:
             location.current_generation = make_new_generation(location)
 
         targets = lambda x: (3*x, 3*x+1, 3*x+2)
-        
+
         row = get_data_points(
-            GC.current_generation, 
-            time, 
-            naive.heavy_chain.get_gapped_sequence(), 
+            GC.current_generation,
+            time,
+            naive.heavy_chain.get_gapped_sequence(),
             naive.light_chain.get_gapped_sequence(),
             [i for x in TARGET_PAIR.heavy.mutation_locations for i in targets(x)],
             [i for x in TARGET_PAIR.light.mutation_locations for i in targets(x)])
@@ -209,8 +263,8 @@ def simulate(clone_id, TARGET_PAIR, gc_start_generation, root, time=0):
         dev_data_rows.append(row)
 
         if time % 25 ==0:
-            logger.debug(f"Time: {time}, population: {len(GC.current_generation)}")
-        
+            logger.debug("Time: %d, population: %d", time, len(GC.current_generation))
+
         [x.finish_migration() for x in locations]
 
         for location in locations:
@@ -220,11 +274,25 @@ def simulate(clone_id, TARGET_PAIR, gc_start_generation, root, time=0):
                     # make sure we don't remove the naive cell
                     continue
                 if time == s.END_TIME-1:
-                    sample_size = min(len(location.current_generation), location.settings.sample_size)
+                    sample_size = min(
+                        len(location.current_generation),
+                        location.settings.sample_size
+                        )
                 else:
-                    sample_size = min(len(location.current_generation)//2, location.settings.sample_size)
-                current_sample = s._RNG.choice(location.current_generation, size=sample_size, replace=False)
-                location.current_generation = [x for x in location.current_generation if x not in current_sample]
+                    sample_size = min(
+                        len(location.current_generation)//2,
+                        location.settings.sample_size
+                        )
+                current_sample = s._RNG.choice( # pylint: disable=protected-access
+                    location.current_generation,
+                    size=sample_size,
+                    replace=False
+                    )
+                location.current_generation = [
+                    x
+                    for x in location.current_generation
+                    if x not in current_sample
+                    ]
                 for node in current_sample:
                     sampled_ids.append(id(node.cell))
                     node.sampled_time = time
@@ -233,7 +301,7 @@ def simulate(clone_id, TARGET_PAIR, gc_start_generation, root, time=0):
 
         time += 1
         if time<s.END_TIME:
-            bar.update()
+            progress_bar.update()
 
 
     [x.finish_migration() for x in locations]
@@ -244,24 +312,32 @@ def simulate(clone_id, TARGET_PAIR, gc_start_generation, root, time=0):
     pop_data = pd.DataFrame(pop_data_rows)
     pop_data["clone_id"] = clone_id
 
-    bar.bar_format = "{desc}: |{bar}| {n}/{total} in {elapsed}"
-    bar.refresh()
-    bar.close()
-    
+    progress_bar.bar_format = "{desc}: |{bar}| {n}/{total} in {elapsed}"
+    progress_bar.refresh()
+    progress_bar.close()
+
     return sampled, pop_data, df
 
-    
+
 def run_simulation(i, result_dir):
+    """Runs the simulation for a single iteration.
+    Args:
+        i (int): The iteration number of the simulation.
+        result_dir (str): The directory where results will be saved.
+    Returns:
+        dict: A dictionary containing the results of the simulation, 
+            including AIRR data, FASTA sequences, trees, and population data.
+    """
     time = 0
     clone_id = i+1
     naive = Cell(None, None, created_at=time)
     root = Node(naive, clone_id=clone_id)
     airr = []
-    TARGET_PAIR = TargetAminoPair(
-        naive.heavy_chain.get_gapped_sequence(), 
-        naive.light_chain.get_gapped_sequence(), 
-        naive.heavy_chain.CDR3_length, 
-        naive.light_chain.CDR3_length)
+    TARGET_PAIR = TargetAminoPair( # pylint: disable=invalid-name
+        naive.heavy_chain.get_gapped_sequence(),
+        naive.light_chain.get_gapped_sequence(),
+        naive.heavy_chain.cdr3_length,
+        naive.light_chain.cdr3_length)
     TARGET_PAIR.mutate(s.TARGET_MUTATIONS_HEAVY, s.TARGET_MUTATIONS_LIGHT)
 
     sampled, pop_data, dev_df = simulate(clone_id, TARGET_PAIR, [root], root)
@@ -284,7 +360,6 @@ def run_simulation(i, result_dir):
         pruned = root
     elif s.KEEP_FULL_TREE:
         newick = f'{root.write_newick()};'
-        # TODO (jf): add an interative function that can prune the tree
         pruned = root.prune_subtree(sampled_ids)
         pruned_newick = f'{pruned.write_newick()};'
         pruned_time_tree = f'{pruned.write_newick(time_tree=True)};'
@@ -300,7 +375,7 @@ def run_simulation(i, result_dir):
 
     # TODO (jf): clean up dev code and logging with new tree options
     if s.DEV:
-        with open(result_dir + "/all_samples.fasta", "w") as f:
+        with open(result_dir + "/all_samples.fasta", "w", encoding="utf-8") as f:
             f.write(fasta_string)
 
         # logger.info("writing newick tree")
@@ -308,24 +383,34 @@ def run_simulation(i, result_dir):
         #     f.write(newick)
 
         logger.info("writing pruned newick tree")
-        with open(result_dir + "/pruned_tree.tree", "w") as f:
+        with open(result_dir + "/pruned_tree.tree", "w", encoding="utf-8") as f:
             f.write(pruned_newick)
 
         logger.info("writing simplified newick tree")
-        with open(result_dir + "/simplified_time_tree.tree", "w") as f:
+        with open(result_dir + "/simplified_time_tree.tree", "w", encoding="utf-8") as f:
             f.write(simplified_tree_newick)
-        
+
         logger.info("writing simplified newick time tree")
-        with open(result_dir + "/simplified_time_tree.tree", "w") as f:
+        with open(result_dir + "/simplified_time_tree.tree", "w", encoding="utf-8") as f:
             f.write(simplified_time_tree_newick)
-    
+
     if s.DEV:
-        logger.info(f"max affinity was: {TARGET_PAIR.max_affinity}")
+        logger.info("max affinity was: %s", TARGET_PAIR.max_affinity)
         logger.info("making plots")
         # make plots
         make_all_plots(dev_df, result_dir)
-        make_bar_plot(list(TARGET_PAIR.heavy.cdr_multipliers.values()), result_dir + "/cdr_multiplier.png", "CDR multiplier value", "CDR multiplier distribution")
-        make_bar_plot(list(TARGET_PAIR.heavy.fwr_multipliers.values()), result_dir + "/fwr_multiplier.png", "FWR multiplier value", "FWR multiplier distribution")
+        make_bar_plot(
+            list(TARGET_PAIR.heavy.cdr_multipliers.values()),
+            result_dir + "/cdr_multiplier.png",
+            "CDR multiplier value",
+            "CDR multiplier distribution"
+            )
+        make_bar_plot(
+            list(TARGET_PAIR.heavy.fwr_multipliers.values()),
+            result_dir + "/fwr_multiplier.png",
+            "FWR multiplier value",
+            "FWR multiplier distribution"
+            )
 
     return {
         "airr": airr, 
@@ -338,9 +423,13 @@ def run_simulation(i, result_dir):
         "data": dev_df, 
         "clone_id": clone_id, 
         "pop_data": pop_data,
-        "targets": {"clone_id": clone_id, "heavy": TARGET_PAIR.heavy.amino_acid_seq, "light": TARGET_PAIR.light.amino_acid_seq}
+        "targets": {
+            "clone_id": clone_id,
+            "heavy": TARGET_PAIR.heavy.amino_acid_seq,
+            "light": TARGET_PAIR.light.amino_acid_seq
+            }
         }
 
 
 if __name__ == "__main__":
-    run_simulation(1, f's.RESULTS_DIR/results1/')
+    run_simulation(1, f'{s.RESULTS_DIR}/results1/')

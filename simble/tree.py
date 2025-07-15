@@ -23,7 +23,38 @@ from simble.location import LocationName
 logger = logging.getLogger(__package__)
 
 class Node:
-    def __init__(self, cell, parent=None, heavy_mutations=0, light_mutations=0, generation=0, clone_id=None):
+    """Represents a node in the simulation tree.
+    Attributes:
+        cell (Cell): The cell associated with this node.
+        parent (Node): The parent node in the tree.
+        heavy_mutations (int): The number of heavy chain mutations.
+        light_mutations (int): The number of light chain mutations.
+        generation (int): The generation of the node.
+        clone_id (int): The unique identifier for the clone.
+        children (list): The list of child nodes.
+        antigen (int): The antigen bound to the cell at this time point.
+        sampled_time (int): The time at which the node was sampled.
+        last_migration (int): The last migration time of the node's ancestors.
+    """
+
+    def __init__(
+            self,
+            cell,
+            parent=None,
+            heavy_mutations=0,
+            light_mutations=0,
+            generation=0,
+            clone_id=None
+            ):
+        """Initializes a Node instance.
+        Args:
+            cell (Cell): The cell associated with this node.
+            parent (Node): The parent node in the tree.
+            heavy_mutations (int): The number of heavy chain mutations.
+            light_mutations (int): The number of light chain mutations.
+            generation (int): The generation of the node.
+            clone_id (int): The unique identifier for the clone.
+        """
         self.cell=cell
         self.parent=parent
         self.heavy_mutations=heavy_mutations
@@ -40,12 +71,15 @@ class Node:
 
     @property
     def time_since_last_split(self):
+        """Calculates the time since the last split in the tree."""
         if self.parent is None:
             return 0
         return self.generation - self.parent.generation
 
     @property
     def occupancy(self):
+        """Calculates the occupancy in this node's current location based on 
+        its generation and last migration."""
         if self.parent is None:
             return 0
         if self.last_migration is None:
@@ -55,9 +89,11 @@ class Node:
         time_since_migration = self.generation - self.last_migration
         branch_time = self.generation - self.parent.generation
         return min(time_since_migration / branch_time, 1)
-        
+
+
     @property
     def occupancy_other(self):
+        """Calculates the occupancy of the node in the 'other' location."""
         if self.cell.location is None:
             return 0
         if self.cell.location.name == LocationName.OTHER:
@@ -65,7 +101,7 @@ class Node:
         else:
             return 1 - self.occupancy
 
-    
+
     def _propogate_identical_children_count(self):
         if self.cell.location.name == LocationName.OTHER:
             # TODO(jf): change this if we change the way we handle
@@ -73,21 +109,46 @@ class Node:
             return
         self.identical_children += 1
         if self.parent is not None and self.heavy_mutations == 0 and self.light_mutations == 0:
-            self.parent._propogate_identical_children_count()
+            self.parent._propogate_identical_children_count() # pylint: disable=protected-access
 
     def add_child(self, child):
+        """Adds a child node to this node.
+        Args:
+            child (Node): The child node to add.
+        """
         child.parent = self
         self.children.append(child)
         if child.heavy_mutations == 0 and child.light_mutations == 0:
             self._propogate_identical_children_count()
 
     def write_newick(self, time_tree=False):
-        return _write_newick_iteratively(self, time_tree=time_tree)
+        """Writes the node and its children in Newick format.
+        Args:
+            time_tree (bool): Whether to write the tree with time information.
+        Returns:
+            str: The Newick representation of the node and its children.
+        """
+        return self._write_newick_iteratively(time_tree=time_tree)
 
-    def _write_newick(self, time_tree=False, subtrees=None, recursion=False):
+    def write_newick_node(self, time_tree=False, subtrees=None):
+        """Writes the node in Newick format.
+        Args:
+            time_tree (bool): Whether to write the tree with time information.
+            subtrees (list): A list of Newick strings for the children.
+        Returns:
+            str: The Newick representation of the node and, 
+                if subtrees' Newick strings are provided, its children.
+        """
         name = f"{str(self.clone_id)}_{str(id(self.cell))}"
-        labels= f"cell_id={str(self.clone_id)}_{str(id(self.cell))},location={self.cell.location.value},generation={self.generation}"
-        labels += f",occupancy={self.occupancy},occupancy_other={self.occupancy_other},identical_children={self.identical_children},antigen={self.antigen}"
+        labels = (
+            f"cell_id={str(self.clone_id)}_{str(id(self.cell))},"
+            f"location={self.cell.location.value},"
+            f"generation={self.generation},"
+            f"occupancy={self.occupancy},"
+            f"occupancy_other={self.occupancy_other},"
+            f"identical_children={self.identical_children},"
+            f"antigen={self.antigen}"
+        )
         if time_tree:
             branch_length = str(self.time_since_last_split)
         else:
@@ -96,16 +157,67 @@ class Node:
         labels = f"[&{labels}]"
         if len(self.children)==0:
             children = ""
-            # return name + labels + branch
-        elif subtrees is None and recursion:
-            children = "(" + ",".join([x.write_newick(time_tree=time_tree) for x in self.children]) + ")"
         elif subtrees is None or len(subtrees) == 0:
             children = ""
         else:
             children = "(" + ",".join(subtrees) + ")"
         return children + name + labels + branch
-        
+
+
+    def _write_newick_iteratively(self, time_tree=False):
+        """Writes the tree in Newick format iteratively.
+        Args:
+            tree (Node): The root node of the tree/subtree.
+            time_tree (bool): Whether to write the tree with time information.
+        Returns:
+            str: The Newick representation of the tree.
+        """
+        stack = [self]
+        children_newick = {}
+        newick = ""
+
+        def add_to_newick_dict(node, newick):
+            # for memory efficiency, once we're adding this node's newick to its parent
+            # we can remove it from the dict
+            if node.parent is None:
+                return newick
+            if node.parent not in children_newick:
+                children_newick[node.parent] = []
+            children_newick[node.parent].append(newick)
+            if node in children_newick:
+                children_newick.pop(node)
+            return ""
+
+        while len(stack) > 0:
+            current = stack.pop()
+            number_of_children = len(current.children)
+            child_newicks = children_newick.get(current, [])
+            number_of_child_newicks = len(child_newicks)
+            if len(current.children) == 0:
+                # leaf node
+                # this should be handled by number_of_children == number_of_child_newicks
+                curr_newick = current.write_newick_node(time_tree=time_tree)
+                newick += add_to_newick_dict(current, curr_newick)
+            elif number_of_children == number_of_child_newicks:
+                # all children have been processed
+                curr_newick = current.write_newick_node(time_tree=time_tree, subtrees=child_newicks)
+                # add the newick string to the parent and if there is no parent
+                # i.e. we have the root, then we can just write the newick string
+                newick += add_to_newick_dict(current, curr_newick)
+            else:
+                # not all children have been processed
+                # this node can't be processed yet, so push it back onto the stack
+                stack.append(current)
+                # then push all children onto the stack so the children are above current node
+                for child in current.children:
+                    stack.append(child)
+        return newick
+
     def copy(self):
+        """Creates a copy of the node.
+        Returns:
+            Node: A new Node instance with the same properties as this node.
+        """
         new = Node(
             self.cell,
             None,
@@ -118,11 +230,21 @@ class Node:
         new.last_migration = self.last_migration
         return new
 
+
     def prune_subtree(self, to_keep):
+        """Prunes the subtree to keep only nodes with IDs in the to_keep set.
+        Args:
+            to_keep (set): A set of IDs to keep in the subtree.
+        Returns:
+            Node: A new Node instance representing the pruned subtree.
+        """
         new_tree = _build_tree_to_keep(self, to_keep)
         return new_tree
-    
+
+
     def prune_up_tree(self):
+        """Prunes the tree upwards, removing this node and its ancestors 
+            if they have no children."""
         if len(self.children) > 0:
             # we don't want to prune this node or up if it still has children
             return
@@ -132,9 +254,9 @@ class Node:
                 self.parent.children.remove(self)
                 parent = self.parent
                 self.parent = None
-                parent.prune_up_tree()           
-            
-        
+                parent.prune_up_tree()
+
+
 def _build_tree_to_keep(node, to_keep):
     subtrees_to_keep = []
     for child in node.children:
@@ -153,59 +275,33 @@ def _build_tree_to_keep(node, to_keep):
         return new_node
 
 
-def _write_newick_iteratively(tree, time_tree=False):
-    stack = [tree]
-    children_newick = {}
-    newick = ""
-
-    def add_to_newick_dict(node, newick):
-        # for memory efficiency, once we're adding this node's newick to its parent
-        # we can remove it from the dict
-        if node.parent is None:
-            return newick
-        if node.parent not in children_newick:
-            children_newick[node.parent] = []
-        children_newick[node.parent].append(newick)
-        if node in children_newick:
-            children_newick.pop(node)
-        return ""
-    
-    while len(stack) > 0:
-        current = stack.pop()
-        number_of_children = len(current.children)
-        child_newicks = children_newick.get(current, [])
-        number_of_child_newicks = len(child_newicks)
-        if len(current.children) == 0:
-            # leaf node <- but this should be handled by number_of_children == number_of_child_newicks but i want to just test it first
-            curr_newick = current._write_newick(time_tree=time_tree)
-            newick += add_to_newick_dict(current, curr_newick)
-        elif number_of_children == number_of_child_newicks:
-            # all children have been processed
-            curr_newick = current._write_newick(time_tree=time_tree, subtrees=child_newicks)
-            # add the newick string to the parent and if there is no parent
-            # i.e. we have the root, then we can just write the newick string
-            newick += add_to_newick_dict(current, curr_newick)
-        else:
-            # not all children have been processed
-            # this node can't be processed yet, so push it back onto the stack
-            stack.append(current)
-            # then push all children onto the stack so the children are above current node
-            for child in current.children:
-                stack.append(child)
-    return newick
-
 
 def simplify_tree(root):
+    """Simplifies the tree by removing nodes with only one child.
+    Args:
+        root (Node): The root node of the tree.
+    Returns:
+        Node: A new Node instance representing the simplified tree.
+    """
     new_root = root.copy()
     subtrees = [(new_root, child, 0, 0) for child in root.children]
     while len(subtrees) > 0:
-        parent, current_node, heavy_mutations_since_last_split, light_mutations_since_last_split = subtrees.pop(0)
+        (parent,
+         current_node,
+         heavy_mutations_since_last_split,
+         light_mutations_since_last_split
+         ) = subtrees.pop(0)
         if len(current_node.children) == 1:
             # we're removing this node
             child = current_node.children[0]
             heavy_mutations_since_last_split += current_node.heavy_mutations
             light_mutations_since_last_split += current_node.light_mutations
-            subtrees.append((parent, child, heavy_mutations_since_last_split, light_mutations_since_last_split))
+            subtrees.append(
+                (parent,
+                 child,
+                 heavy_mutations_since_last_split,
+                 light_mutations_since_last_split)
+                )
         else:
             # we're keeping this node
             new_node = current_node.copy()
@@ -215,8 +311,3 @@ def simplify_tree(root):
             for child in current_node.children:
                 subtrees.append((new_node, child, 0, 0))
     return new_root
-
-
-
-
-
