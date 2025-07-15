@@ -27,14 +27,28 @@ from multiprocessing import Pool
 
 import numpy as np
 import pandas as pd
+from tqdm import tqdm
 
-from .helper import make_all_plots
+from .helper import (ALL_TREE_NAMES, MEMORY_SAVE_TREE_NAMES, TREE_NAMES,
+                     make_all_plots)
 from .location import as_enum
 from .parsing import get_parser, validate_and_process_args
 from .settings import s
 from .simulation import run_simulation
 
 logger = logging.getLogger(__package__)
+
+class TqdmLoggingHandler(logging.Handler):
+    def __init__(self, level=logging.NOTSET):
+        super().__init__(level)
+
+    def emit(self, record):
+        try:
+            msg = self.format(record)
+            tqdm.write(f"\033[K{msg}")
+            self.flush()
+        except Exception:
+            self.handleError(record)
 
 def set_logger():
     if s.DEV:
@@ -46,8 +60,13 @@ def set_logger():
     else:
         logger.setLevel(logging.WARNING)
         log_format = '%(levelname)s: %(message)s'
+    
+    handler = TqdmLoggingHandler()
+    formatter=logging.Formatter(log_format, datefmt='%H:%M:%S')
+    handler.setFormatter(formatter)
+    logger.addHandler(handler)
+    logger.propagate = False
 
-    logging.basicConfig(format=log_format, datefmt='%H:%M:%S')
 
 
 def do_simulation(i, seed, filename):
@@ -90,14 +109,17 @@ def process_results(results):
         grouped = df.groupby(['time']).mean().reset_index()
         make_all_plots(grouped, s.RESULTS_DIR, True)
 
-    nexus = "#NEXUS\n" + "BEGIN TREES;\n"
+    tree_names = MEMORY_SAVE_TREE_NAMES if s.MEMORY_SAVE else ALL_TREE_NAMES if s.KEEP_FULL_TREE else TREE_NAMES
+    nexus = ["#NEXUS\n" + "BEGIN TREES;\n" for _ in tree_names]
+
     for clone in results:
-        nexus += f'\tTree true_tree_{clone["clone_id"]} = {clone["true_tree"]}\n'
-        nexus += f'\tTree pruned_tree_{clone["clone_id"]} = {clone["pruned_tree"]}\n'
-        nexus += f'\tTree pruned_time_tree_{clone["clone_id"]} = {clone["pruned_time_tree"]}\n'
-    nexus += "END;\n"
-    with open(s.RESULTS_DIR + "/all_trees.nex", "w") as f:
-        f.write(nexus)
+        for i, tree_name in enumerate(tree_names):
+            nexus[i] += f'\tTree {clone["clone_id"]} = {clone[tree_name]}\n'
+
+    for i, tree_name in enumerate(tree_names):
+        nexus[i] += "END;\n"
+        with open(s.RESULTS_DIR + f"/all_{tree_name}s.nex", "w") as f:
+            f.write(nexus[i])
     
     targets = pd.DataFrame(all_results["targets"])
     targets.to_csv(s.RESULTS_DIR + "/all_targets.csv", index=False)
@@ -110,7 +132,6 @@ def main():
     warnings = validate_and_process_args(args)
 
     set_logger()
-
     for warning in warnings:
         logger.warning(warning)
 
@@ -131,7 +152,6 @@ def main():
         if args.processes > 1:
             with Pool(processes=args.processes) as pool:
                 result = pool.starmap(partial(do_simulation, filename=tmpf.name), zip(range(args.n), seeds))
-
         else:
             result = []
             for i in range(args.n):

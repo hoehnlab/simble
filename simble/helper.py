@@ -33,11 +33,15 @@ _ROOT = os.path.abspath(os.path.dirname(__file__))
 def get_data(path):
     return os.path.join(_ROOT, 'data', path)
 
-AIRR_REQUIRED_FIELDS = ['sequence_id', 'sequence', 'rev_comp', 'productive', 'v_call', 'd_call', 'j_call', 'sequence_alignment', 'germline_alignment', 'junction', 'junction_aa', 'v_cigar', 'd_cigar', 'j_cigar', 'np1_length', 'v_germline_start', 'v_germline_end', 'd_germline_start', 'd_germline_end', 'j_germline_start', 'j_germline_end', 'germline_alignment_d_mask', 'locus']
+AIRR_REQUIRED_FIELDS = ['sequence_id', 'sequence', 'rev_comp', 'productive', 'v_call', 'd_call', 'j_call', 'sequence_alignment', 'germline_alignment', 'junction', 'junction_aa', 'v_cigar', 'd_cigar', 'j_cigar', 'np1_length', 'v_germline_start', 'v_germline_end', 'd_germline_start', 'd_germline_end', 'j_germline_start', 'j_germline_end', 'locus']
 
 AIRR_FIELDS_TO_GENERATE = ['sequence_id', 'sequence', 'sequence_alignment', 'germline_alignment', 'location', 'sample_time', 'junction', 'junction_aa', 'junction_length']
 
 AIRR_FIELDS_TO_KEEP = [x for x in AIRR_REQUIRED_FIELDS if x not in AIRR_FIELDS_TO_GENERATE]
+
+ALL_TREE_NAMES = ["full_tree", "pruned_tree", "pruned_time_tree", "simplified_tree", "simplified_time_tree"]
+TREE_NAMES = ["pruned_tree", "pruned_time_tree", "simplified_tree", "simplified_time_tree"]
+MEMORY_SAVE_TREE_NAMES = ["simplified_tree", "simplified_time_tree"]
 
 def read_sf5_table(filename):
     data = pd.read_csv(filename, header=0)
