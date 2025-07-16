@@ -315,7 +315,7 @@ def validate_location(location):
     for key, value in location.items():
         if key not in valid_fields:
             raise ValueError(f"invalid LOCATION field: {key}")
-        if not value.isinstance(valid_fields[key]):
+        if not isinstance(value, valid_fields[key]):
             raise ValueError(f"invalid type for LOCATION field {key}: {type(value)}")
 
 
@@ -336,15 +336,15 @@ def validate_json(json_input):
         valid_type = valid_fields[key]
         if valid_type == int:
             # float is fine if it's actually an integer
-            if value.isinstance(float) and value.is_integer():
+            if isinstance(value, float) and value.is_integer():
                 continue
-            if not value.isinstance(valid_type):
+            if not isinstance(value, valid_type):
                 raise ValueError(f"invalid type for field {key}: {type(value)}")
         elif valid_type == float:
             # integer is fine for floats
-            if not value.isinstance(valid_type) and not value.isinstance(int):
+            if not isinstance(value, valid_type) and not isinstance(value, int):
                 raise ValueError(f"invalid type for field {key}: {type(value)}")
-        elif not value.isinstance(valid_type):
+        elif not isinstance(value, valid_type):
             raise ValueError(f"invalid type for field {key}: {type(value)}")
         if key == "CDR_DIST" or key == "FWR_DIST":
             if value not in ["constant", "exponential"]:
