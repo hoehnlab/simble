@@ -115,6 +115,7 @@ class Settings(Encodable):
         self.TARGET_MUTATIONS_HEAVY = 5
         self.TARGET_MUTATIONS_LIGHT = 2
         self.SELECTION = True
+        self.UNIFORM = False
         self.RESULTS_DIR = ""
         self.MULTIPLIER = 2
         self._RNG = None # pylint: disable=protected-access

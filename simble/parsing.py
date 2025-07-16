@@ -136,6 +136,10 @@ def get_parser():
                        dest="neutral",
                        help="neutral simulation (no selection in germinal center)",
                        action="store_true")
+    model.add_argument("--uniform",
+                       dest="uniform",
+                       help="use a uniform mutation and substitution model",
+                       action="store_true")
     model.add_argument("-a", "--antigen",
                        dest="antigen",
                        help="amount of antigen",
@@ -291,6 +295,7 @@ def validate_and_process_args(args):
     _update_setting("MEMORY_SAVE", args.memory_save)
     _update_setting("KEEP_FULL_TREE", args.keep_full_tree)
     _update_setting("QUIET", args.quiet)
+    _update_setting("UNIFORM", args.uniform)
 
     if args.sample_size:
         s.LOCATIONS[0].sample_size = args.sample_size

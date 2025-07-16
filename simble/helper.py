@@ -155,6 +155,8 @@ def get_mutability_of_kmer(kmer, heavy=True):
     Returns:
         float: The mutability value for the kmer.
     """
+    if s.UNIFORM:
+        return 1
     table = HEAVY_MUTABILITY_TABLE if heavy else LIGHT_MUTABILITY_TABLE
     mutability =  table.loc[table["Fivemer"]==kmer, "Mutability"].values[0]
     if math.isnan(mutability):
