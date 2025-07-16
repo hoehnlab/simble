@@ -136,6 +136,10 @@ def get_parser():
                        dest="neutral",
                        help="neutral simulation (no selection in germinal center)",
                        action="store_true")
+    model.add_argument("--uniform",
+                       dest="uniform",
+                       help="use a uniform mutation and substitution model",
+                       action="store_true")
     model.add_argument("-a", "--antigen",
                        dest="antigen",
                        help="amount of antigen",
@@ -237,7 +241,7 @@ def validate_and_process_args(args):
     """
     warnings = []
     if args.config is not None:
-        # TODO(jf): validate that file exists
+        # TODO (jf): validate that file exists
         warnings.append("Using a config file is not fully tested. Use at your own risk!")
         data = read_from_json(args.config)
         s.update_from_dict(data)
@@ -254,6 +258,13 @@ def validate_and_process_args(args):
         if args.multiplier is not None:
             warnings.append("Neutral simulation specified, ignoring selection multiplier")
         s.SELECTION = False
+
+    # if uniform mutation is specified, ignore selection
+    if args.uniform:
+        _update_setting("UNIFORM", args.uniform)
+        if s.SELECTION:
+            warnings.append("Uniform mutation and substitution model specified, ignoring selection")
+            s.SELECTION = False
 
     if args.sample_info:
         validate_samples(args.sample_info)

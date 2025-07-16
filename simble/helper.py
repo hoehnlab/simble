@@ -139,6 +139,8 @@ def get_substitution_probability(kmer, heavy=True):
     Returns:
         list: A list of probabilities for each nucleotide substitution (A, C, G, T).
     """
+    if s.UNIFORM:
+        return [0.25, 0.25, 0.25, 0.25]
     table = HEAVY_SUBSTITUTION_TABLE if heavy else LIGHT_SUBSTITUTION_TABLE
     row = table.loc[(table["Fivemer"]==kmer)]
     if row.empty:
@@ -155,6 +157,8 @@ def get_mutability_of_kmer(kmer, heavy=True):
     Returns:
         float: The mutability value for the kmer.
     """
+    if s.UNIFORM:
+        return 1
     table = HEAVY_MUTABILITY_TABLE if heavy else LIGHT_MUTABILITY_TABLE
     mutability =  table.loc[table["Fivemer"]==kmer, "Mutability"].values[0]
     if math.isnan(mutability):

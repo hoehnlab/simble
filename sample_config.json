@@ -32,6 +32,7 @@
     "TARGET_MUTATIONS_HEAVY": 5,
     "TARGET_MUTATIONS_LIGHT": 2,
     "SELECTION": true,
+    "UNIFORM": false,
     "RESULTS_DIR": "/home/sample_config_results",
     "MULTIPLIER": 2,
     "DEV": false,
