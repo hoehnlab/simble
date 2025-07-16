@@ -259,7 +259,7 @@ def validate_and_process_args(args):
             warnings.append("Neutral simulation specified, ignoring selection multiplier")
         s.SELECTION = False
 
-    # if uniform selection is specified, ignore selection
+    # if uniform mutation is specified, ignore selection
     if args.uniform and s.SELECTION:
         warnings.append("Uniform mutation and substitution model specified, ignoring selection")
         s.SELECTION = False
