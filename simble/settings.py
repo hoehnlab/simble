@@ -105,13 +105,13 @@ class Settings(Encodable):
                 name=LocationName.GC,
                 mutation_rate=1.0,
                 max_population=1000,
-                migration_rate=0,
+                migration_rate=0.0,
                 sample_size=50),
             LocationSettings(
                 name=LocationName.OTHER,
                 mutation_rate=0.0,
                 max_population=1000,
-                migration_rate=0,
+                migration_rate=0.0,
                 sample_size=12)
                 ]
         self.HEAVY_MUTATE_PROBABILITY = 0.5
