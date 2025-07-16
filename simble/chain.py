@@ -45,6 +45,8 @@ class Chain:
     """
 
     __metaclass__ = abc.ABCMeta
+
+    _mutate_probability = None
     def __init__(
             self,
             nucleotide_seq,
@@ -129,6 +131,7 @@ class Chain:
         new.airr_constants = self.airr_constants
         new.junction_start = self.junction_start
         new.junction_length = self.junction_length
+        new.mutate_probability = self.mutate_probability
         return new
 
 
@@ -324,9 +327,23 @@ class Chain:
 
 
     @property
-    @abc.abstractmethod
     def mutate_probability(self):
         """Returns the mutation probability for the chain"""
+        if self._mutate_probability is None:
+            logger.debug("calculating mutate_probability based on settings")
+            self._mutate_probability = self.shm_per_site * len(self.nucleotide_seq)
+        return self._mutate_probability
+
+    @mutate_probability.setter
+    def mutate_probability(self, value):
+        """Sets the mutation probability for the chain if it is not already set"""
+        if self._mutate_probability is None:
+            self._mutate_probability = value
+
+    @property
+    @abc.abstractmethod
+    def shm_per_site(self):
+        """Returns the mutation rate per site per week for the chain"""
 
     @property
     @abc.abstractmethod
@@ -340,13 +357,13 @@ class HeavyChain(Chain):
     Represents an IGH (heavy) chain of the BCR.
 
     Attributes:
-        mutate_probability (float): Probability of mutation for the heavy chain.
-        IS_HEAVY (bool): Indicates that this is a heavy chain.
+        shm_per_site_per_week (float): Mutation rate per site per week for the heavy chain
+        IS_HEAVY (bool): Indicates that this is a heavy chain
     """
 
     @property
-    def mutate_probability(self):
-        return s.HEAVY_MUTATE_PROBABILITY
+    def shm_per_site(self):
+        return s.HEAVY_SHM_PER_SITE
 
     @property
     def IS_HEAVY(self):
@@ -365,13 +382,13 @@ class LightChain(Chain):
     Represents an IGL or IGK (light) chain of the BCR.
 
     Attributes:
-        mutate_probability (float): Probability of mutation for the light chain.
-        IS_HEAVY (bool): Indicates that this is not a heavy chain.
+        shm_per_site_per_week (float): Mutation rate per site per week for the light chain
+        IS_HEAVY (bool): Indicates that this is NOT a heavy chain
     """
 
     @property
-    def mutate_probability(self):
-        return s.LIGHT_MUTATE_PROBABILITY
+    def shm_per_site(self):
+        return s.LIGHT_SHM_PER_SITE
 
     @property
     def IS_HEAVY(self):

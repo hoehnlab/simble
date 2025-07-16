@@ -72,8 +72,8 @@ class Settings(Encodable):
     """Global settings for the simulation.
     Attributes:
         LOCATIONS (list): List of LocationSettings for different locations.
-        HEAVY_MUTATE_PROBABILITY (float): Probability of heavy chain mutation.
-        LIGHT_MUTATE_PROBABILITY (float): Probability of light chain mutation.
+        HEAVY_SHM_PER_SITE (float): SHM rate per site of the heavy chain.
+        LIGHT_SHM_PER_SITE (float): SHM rate per site of the light chain.
         TARGET_MUTATIONS_HEAVY (int): Number of target mutations for heavy chain.
         TARGET_MUTATIONS_LIGHT (int): Number of target mutations for light chain.
         SELECTION (bool): Whether selection is applied in the simulation.
@@ -110,8 +110,11 @@ class Settings(Encodable):
                 migration_rate=0,
                 sample_size=12)
                 ]
-        self.HEAVY_MUTATE_PROBABILITY = 0.5
-        self.LIGHT_MUTATE_PROBABILITY = 0.25
+        # 0.33/384 = 0.000859375, but avg heavy chain length in our data is 370,
+        # which gives 0.0008908272571108565
+        # 0.16/325 (avg light chain length) = 0.0004923076923076923
+        self.HEAVY_SHM_PER_SITE = 0.0008908272571108565
+        self.LIGHT_SHM_PER_SITE = 0.0004923076923076923
         self.TARGET_MUTATIONS_HEAVY = 5
         self.TARGET_MUTATIONS_LIGHT = 2
         self.SELECTION = True
