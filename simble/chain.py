@@ -347,7 +347,7 @@ class Chain:
     @property
     @abc.abstractmethod
     def shm_per_site(self):
-        """Returns the mutation rate per site per week for the chain"""
+        """Returns the mutation rate per site per generation for the chain"""
 
     @property
     @abc.abstractmethod
@@ -361,7 +361,7 @@ class HeavyChain(Chain):
     Represents an IGH (heavy) chain of the BCR.
 
     Attributes:
-        shm_per_site_per_week (float): Mutation rate per site per week for the heavy chain
+        shm_per_site (float): Mutation rate per site per generation for the heavy chain
         IS_HEAVY (bool): Indicates that this is a heavy chain
     """
 
@@ -386,7 +386,7 @@ class LightChain(Chain):
     Represents an IGL or IGK (light) chain of the BCR.
 
     Attributes:
-        shm_per_site_per_week (float): Mutation rate per site per week for the light chain
+        shm_per_site (float): Mutation rate per site per generation for the light chain
         IS_HEAVY (bool): Indicates that this is NOT a heavy chain
     """
 

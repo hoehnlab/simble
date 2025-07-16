@@ -169,7 +169,7 @@ def get_parser():
                        type=float)
     model.add_argument("--light-shm",
                        dest="light_shm_per_site",
-                       help="rate of SHM in heavy chain per site per generation",
+                       help="rate of SHM in light chain per site per generation",
                        metavar="P",
                        default=None,
                        type=float)
