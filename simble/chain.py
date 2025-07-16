@@ -322,13 +322,14 @@ class Chain:
     def get_target_from_pair(self, target_pair):
         """Returns the appropriate target from a TargetAminoPair based on the chain type"""
 
-    @abc.abstractmethod
+
     @property
+    @abc.abstractmethod
     def mutate_probability(self):
         """Returns the mutation probability for the chain"""
 
-    @abc.abstractmethod
     @property
+    @abc.abstractmethod
     def IS_HEAVY(self): # pylint: disable=invalid-name
         """Returns whether the chain is a heavy chain"""
 
