@@ -114,8 +114,8 @@ class Settings(Encodable):
                 migration_rate=0.0,
                 sample_size=12)
                 ]
-        # 0.33/384 = 0.000859375, but avg heavy chain length in our data is 370,
-        # which gives 0.0008908272571108565
+        # Based on an average heavy chain length of 370, the calculated value is:
+        # 0.33/370 = 0.0008908272571108565
         # 0.16/325 (avg light chain length) = 0.0004923076923076923
         self.HEAVY_SHM_PER_SITE = 0.0008908272571108565
         self.LIGHT_SHM_PER_SITE = 0.0004923076923076923
