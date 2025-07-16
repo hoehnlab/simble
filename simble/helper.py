@@ -139,6 +139,8 @@ def get_substitution_probability(kmer, heavy=True):
     Returns:
         list: A list of probabilities for each nucleotide substitution (A, C, G, T).
     """
+    if s.UNIFORM:
+        return [0.25, 0.25, 0.25, 0.25]
     table = HEAVY_SUBSTITUTION_TABLE if heavy else LIGHT_SUBSTITUTION_TABLE
     row = table.loc[(table["Fivemer"]==kmer)]
     if row.empty:
