@@ -161,15 +161,15 @@ def get_parser():
                        metavar="R",
                        default=None,
                        type=float)
-    model.add_argument("--heavy-mutate-probability",
-                       dest="heavy_mutate_probability",
-                       help="probability of heavy chain mutation",
+    model.add_argument("--heavy-shm",
+                       dest="heavy_shm_per_site",
+                       help="rate of SHM in heavy chain per site per generation",
                        metavar="P",
                        default=None,
                        type=float)
-    model.add_argument("--light-mutate-probability",
-                       dest="light_mutate_probability",
-                       help="probability of light chain mutation",
+    model.add_argument("--light-shm",
+                       dest="light_shm_per_site",
+                       help="rate of SHM in light chain per site per generation",
                        metavar="P",
                        default=None,
                        type=float)
@@ -288,8 +288,8 @@ def validate_and_process_args(args):
         args.keep_full_tree = False
 
     _update_setting("MULTIPLIER", args.multiplier)
-    _update_setting("HEAVY_MUTATE_PROBABILITY", args.heavy_mutate_probability)
-    _update_setting("LIGHT_MUTATE_PROBABILITY", args.light_mutate_probability)
+    _update_setting("HEAVY_SHM_PER_SITE", args.heavy_shm_per_site)
+    _update_setting("LIGHT_SHM_PER_SITE", args.light_shm_per_site)
     _update_setting("TARGET_MUTATIONS_HEAVY", args.target_mutations_heavy)
     _update_setting("TARGET_MUTATIONS_LIGHT", args.target_mutations_light)
     _update_setting("DEV", args.dev)
