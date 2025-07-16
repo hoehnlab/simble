@@ -260,10 +260,11 @@ def validate_and_process_args(args):
         s.SELECTION = False
 
     # if uniform mutation is specified, ignore selection
-    if args.uniform and s.SELECTION:
-        warnings.append("Uniform mutation and substitution model specified, ignoring selection")
-        s.SELECTION = False
+    if args.uniform:
         _update_setting("UNIFORM", args.uniform)
+        if s.SELECTION:
+            warnings.append("Uniform mutation and substitution model specified, ignoring selection")
+            s.SELECTION = False
 
     if args.sample_info:
         validate_samples(args.sample_info)
