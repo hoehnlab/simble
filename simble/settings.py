@@ -17,7 +17,10 @@
  along with simble.  If not, see <https://www.gnu.org/licenses/>.
  """
 
+import logging
 from .location import LocationName
+
+logger = logging.getLogger(__package__)
 
 
 class Encodable():
@@ -77,6 +80,7 @@ class Settings(Encodable):
         TARGET_MUTATIONS_HEAVY (int): Number of target mutations for heavy chain.
         TARGET_MUTATIONS_LIGHT (int): Number of target mutations for light chain.
         SELECTION (bool): Whether selection is applied in the simulation.
+        UNIFORM (bool): Whether to use a uniform mutation model.
         RESULTS_DIR (str): Directory for saving results.
         MULTIPLIER (float): Multiplier for affinity calculations.
         _RNG (random.Random): Random number generator instance.
@@ -147,8 +151,11 @@ class Settings(Encodable):
         for key, value in dictionary.items():
             if key == "LOCATIONS":
                 self.LOCATIONS = [LocationSettings(**x) for x in value]
-            else:
-                setattr(self, key, value)
+                continue
+            setattr(self, key, value)
 
+        if self.UNIFORM and self.SELECTION:
+            logger.warning("Uniform mutation/substitution model specified, ignoring selection")
+            self.SELECTION = False
 
 s = Settings()

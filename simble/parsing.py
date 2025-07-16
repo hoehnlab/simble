@@ -241,7 +241,7 @@ def validate_and_process_args(args):
     """
     warnings = []
     if args.config is not None:
-        # TODO(jf): validate that file exists
+        # TODO (jf): validate that file exists
         warnings.append("Using a config file is not fully tested. Use at your own risk!")
         data = read_from_json(args.config)
         s.update_from_dict(data)
@@ -258,6 +258,12 @@ def validate_and_process_args(args):
         if args.multiplier is not None:
             warnings.append("Neutral simulation specified, ignoring selection multiplier")
         s.SELECTION = False
+
+    # if uniform selection is specified, ignore selection
+    if args.uniform and s.SELECTION:
+        warnings.append("Uniform mutation and substitution model specified, ignoring selection")
+        s.SELECTION = False
+        _update_setting("UNIFORM", args.uniform)
 
     if args.sample_info:
         validate_samples(args.sample_info)
@@ -295,7 +301,6 @@ def validate_and_process_args(args):
     _update_setting("MEMORY_SAVE", args.memory_save)
     _update_setting("KEEP_FULL_TREE", args.keep_full_tree)
     _update_setting("QUIET", args.quiet)
-    _update_setting("UNIFORM", args.uniform)
 
     if args.sample_size:
         s.LOCATIONS[0].sample_size = args.sample_size
