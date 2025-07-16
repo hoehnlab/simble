@@ -136,6 +136,10 @@ def get_parser():
                        dest="neutral",
                        help="neutral simulation (no selection in germinal center)",
                        action="store_true")
+    model.add_argument("--uniform",
+                       dest="uniform",
+                       help="use a uniform mutation and substitution model",
+                       action="store_true")
     model.add_argument("-a", "--antigen",
                        dest="antigen",
                        help="amount of antigen",
@@ -237,7 +241,7 @@ def validate_and_process_args(args):
     """
     warnings = []
     if args.config is not None:
-        # TODO(jf): validate that file exists
+        # TODO (jf): validate that file exists
         warnings.append("Using a config file is not fully tested. Use at your own risk!")
         data = read_from_json(args.config)
         s.update_from_dict(data)
@@ -254,6 +258,13 @@ def validate_and_process_args(args):
         if args.multiplier is not None:
             warnings.append("Neutral simulation specified, ignoring selection multiplier")
         s.SELECTION = False
+
+    # if uniform mutation is specified, ignore selection
+    if args.uniform:
+        _update_setting("UNIFORM", args.uniform)
+        if s.SELECTION:
+            warnings.append("Uniform mutation and substitution model specified, ignoring selection")
+            s.SELECTION = False
 
     if args.sample_info:
         validate_samples(args.sample_info)
@@ -315,8 +326,33 @@ def validate_location(location):
     for key, value in location.items():
         if key not in valid_fields:
             raise ValueError(f"invalid LOCATION field: {key}")
-        if not isinstance(value, valid_fields[key]):
-            raise ValueError(f"invalid type for LOCATION field {key}: {type(value)}")
+        valid_type = valid_fields[key]
+        if valid_type in [int, float]:
+            try:
+                _validate_numeric(value, valid_type)
+            except ValueError as e:
+                raise ValueError((
+                    f"invalid type for LOCATION field {key}: {type(value)}; "
+                    f"should be {valid_type}"
+                    )) from e
+        if not isinstance(value, valid_type):
+            raise ValueError((
+                    f"invalid type for LOCATION field {key}: {type(value)}; "
+                    f"should be {valid_type}"
+                    ))
+
+
+def _validate_numeric(value, valid_type):
+    if valid_type == int:
+        # float is fine if it's actually an integer
+        if isinstance(value, float) and value.is_integer():
+            return
+        if not isinstance(value, valid_type):
+            raise ValueError(f"invalid type: {type(value)}")
+    elif valid_type == float:
+        # integer is fine for floats
+        if not isinstance(value, valid_type) and not isinstance(value, int):
+            raise ValueError(f"invalid type: {type(value)}")
 
 
 def validate_json(json_input):
@@ -334,18 +370,16 @@ def validate_json(json_input):
         if key not in valid_fields:
             raise ValueError(f"invalid field: {key}")
         valid_type = valid_fields[key]
-        if valid_type == int:
-            # float is fine if it's actually an integer
-            if isinstance(value, float) and value.is_integer():
-                continue
-            if not isinstance(value, valid_type):
-                raise ValueError(f"invalid type for field {key}: {type(value)}")
-        elif valid_type == float:
-            # integer is fine for floats
-            if not isinstance(value, valid_type) and not isinstance(value, int):
-                raise ValueError(f"invalid type for field {key}: {type(value)}")
+        if valid_type in [int, float]:
+            try:
+                _validate_numeric(value, valid_type)
+            except ValueError as e:
+                raise ValueError((
+                    f"invalid type for field {key}: {type(value)}; "
+                    f"should be {valid_type}"
+                    )) from e
         elif not isinstance(value, valid_type):
-            raise ValueError(f"invalid type for field {key}: {type(value)}")
+            raise ValueError(f"invalid type for field {key}: {type(value)}; should be {valid_type}")
         if key == "CDR_DIST" or key == "FWR_DIST":
             if value not in ["constant", "exponential"]:
                 raise ValueError(f"invalid value for field {key}: {value}")

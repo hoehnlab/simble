@@ -176,6 +176,8 @@ class Chain:
     def create_mutability_map(self):
         """Creates a mutability map based on the nucleotide sequence"""
         mutability_map = []
+        if s.UNIFORM:
+            return [1] * len(self.nucleotide_seq)
         padded_seq = "NN" + self.nucleotide_seq + "NN"
         for i in range(len(self.nucleotide_seq)):
             current_weight = get_mutability_of_kmer(
@@ -188,6 +190,8 @@ class Chain:
 
     def update_mutability_map(self, mutated_positions):
         """Updates the mutability map based on mutated positions"""
+        if s.UNIFORM:
+            return
         padded_seq = "NN" + self.nucleotide_seq + "NN"
         for i in mutated_positions:
             floor = max(0, i-2)
