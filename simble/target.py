@@ -189,7 +189,7 @@ class TargetAminoAcid:
         if True in is_nan:
             print("NaN in mutate probability!")
             mutate_probability=None
-        mutate_positions = s.RNG.choice( # pylint: disable=protected-access
+        mutate_positions = s.RNG.choice(
             range(len(amino_acid_seq)),
             size=n,
             p=mutate_probability,
