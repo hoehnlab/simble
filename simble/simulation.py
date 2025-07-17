@@ -79,7 +79,7 @@ def do_differentiation(location, time):
     to_migrate = []
     migrate_size = min(
         int(
-            s.RNG.poisson(location.settings.migration_rate) # pylint: disable=protected-access
+            s.RNG.poisson(location.settings.migration_rate)
             ),
             len(current_generation)//2
             )
