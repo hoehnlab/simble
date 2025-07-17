@@ -76,7 +76,7 @@ def do_simulation(i, seed, filename):
     with open(filename, "r", encoding="utf-8") as f:
         settings = json.load(f, object_hook=as_enum)
     s.update_from_dict(settings)
-    s._RNG = np.random.default_rng(seed) # pylint: disable=protected-access
+    s._x_RNG = np.random.default_rng(seed) # pylint: disable=protected-access
     set_logger()
     logger.info("Starting simulation %s", i)
     folder = s.RESULTS_DIR
@@ -102,8 +102,10 @@ def process_results(results):
         with open(s.RESULTS_DIR + "/all_samples.fasta", "w", encoding="utf-8") as f:
             f.write(fasta_string)
     airr = pd.concat(all_results["airr"])
-    airr["d_germline_start"] = airr["d_germline_start"].astype(pd.Int64Dtype())
-    airr["d_germline_end"] = airr["d_germline_end"].astype(pd.Int64Dtype())
+    if "d_germline_start" in airr.columns:
+        airr["d_germline_start"] = airr["d_germline_start"].astype(pd.Int64Dtype())
+    if "d_germline_end" in airr.columns:
+        airr["d_germline_end"] = airr["d_germline_end"].astype(pd.Int64Dtype())
     airr.to_csv(s.RESULTS_DIR + "/all_samples_airr.tsv", sep="\t", index=False)
     pop_data = pd.concat(all_results["pop_data"])
     pop_data.to_csv(s.RESULTS_DIR + "/population_data.csv", index=False)

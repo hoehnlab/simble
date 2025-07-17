@@ -82,6 +82,11 @@ NAIVE = pd.read_csv(get_data("naive_pairs_filtered.csv"), header=0)
 HEAVY_SUBSTITUTION_TABLE = read_sf5_table(get_data("hh_sf5_substitution.csv"))
 LIGHT_SUBSTITUTION_TABLE = read_sf5_table(get_data("hkl_sf5_substitution.csv"))
 
+StartChain = namedtuple(
+    "StartChain", 
+    ["nucleotide_seq", "gapped_seq", "cdr3_aa_length", "junction"]
+    )
+StartConstants = namedtuple("StartConstants", ["chain", "constants"])
 
 def translate_to_amino_acid(nucleotide_seq):
     """ Translates a nucleotide sequence into an amino acid sequence.
@@ -183,11 +188,28 @@ def get_random_start_pair():
     Returns:
         StartPair: A named tuple containing the heavy and light chains.
     """
-    row = NAIVE.sample(random_state=s._RNG) # pylint: disable=protected-access
     StartPair = namedtuple("RawStartPair", ["heavy", "light"])
+    if s.UNIFORM:
+        sequence = "".join(
+            s.RNG.choice(
+                a=["A", "C", "G", "T"],
+                size=s.SEQUENCE_LENGTH
+                )
+            )
+        start_input = StartChain(
+            sequence,
+            sequence,
+            0,
+            ""
+        )
+        empty = StartConstants(StartChain("", "", 0, ""), {})
+        start_info = StartConstants(start_input, {"germline_alignment": sequence})
+        return StartPair(start_info, empty)
+
+    row = NAIVE.sample(random_state=s.RNG)
     heavy = _format_random_start_chain(row, "heavy")
     light = _format_random_start_chain(row, "light")
-    if len(heavy.input.aligned) < 312 or len(light.input.aligned) < 312:
+    if len(heavy.chain.gapped_seq) < 312 or len(light.chain.gapped_seq) < 312:
         logger.warning("aligned sequence length is less than 312")
     return StartPair(heavy, light)
 
@@ -200,10 +222,8 @@ def _format_random_start_chain(row, chain_type):
     Returns:
         StartInfo: A named tuple containing the input and constants for the chain.
     """
-    StartInput = namedtuple("StartInput", ["chain", "aligned", "cdr3_aa_length", "junction"])
-    StartInfo = namedtuple("StartInfo", ["input", "constants"])
-    get_cdr3_length = lambda x: int(len(x)/3)
-    start_input = StartInput(
+    get_cdr3_length = lambda x: int(len(x)/3) #pylint: disable=unnecessary-lambda-assignment
+    start_input = StartChain(
         remove_gaps(row[f'{chain_type}_aligned'].values[0]),
         row[f'{chain_type}_aligned'].values[0],
         get_cdr3_length(row[f'{chain_type}_cdr3'].values[0]),
@@ -212,8 +232,8 @@ def _format_random_start_chain(row, chain_type):
     constants = {
         x:row[f'{chain_type}_{x}'].values[0] for x in AIRR_FIELDS_TO_KEEP
     }
-    constants["germline_alignment"] = start_input.aligned
-    return StartInfo(start_input, constants)
+    constants["germline_alignment"] = start_input.gapped_seq
+    return StartConstants(start_input, constants)
 
 
 def make_plot(data, times, results_file, ylabel, title, log=False):

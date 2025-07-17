@@ -140,6 +140,11 @@ def get_parser():
                        dest="uniform",
                        help="use a uniform mutation and substitution model",
                        action="store_true")
+    model.add_argument("--sequence-length",
+                       dest="sequence_length",
+                       help="length of the sequence to simulate if uniform (default: 370)",
+                       metavar="L",
+                       type=int)
     model.add_argument("-a", "--antigen",
                        dest="antigen",
                        help="amount of antigen",
@@ -254,17 +259,14 @@ def validate_and_process_args(args):
     if not os.path.exists(s.RESULTS_DIR):
         os.mkdir(s.RESULTS_DIR)
 
+    # if uniform mutation is specified, ignore selection
+    if args.uniform:
+        _update_setting("UNIFORM", args.uniform)
+
     if args.neutral:
         if args.multiplier is not None:
             warnings.append("Neutral simulation specified, ignoring selection multiplier")
         s.SELECTION = False
-
-    # if uniform mutation is specified, ignore selection
-    if args.uniform:
-        _update_setting("UNIFORM", args.uniform)
-        if s.SELECTION:
-            warnings.append("Uniform mutation and substitution model specified, ignoring selection")
-            s.SELECTION = False
 
     if args.sample_info:
         validate_samples(args.sample_info)
@@ -302,6 +304,7 @@ def validate_and_process_args(args):
     _update_setting("MEMORY_SAVE", args.memory_save)
     _update_setting("KEEP_FULL_TREE", args.keep_full_tree)
     _update_setting("QUIET", args.quiet)
+    _update_setting("SEQUENCE_LENGTH", args.sequence_length)
 
     if args.sample_size:
         s.LOCATIONS[0].sample_size = args.sample_size
@@ -335,7 +338,7 @@ def validate_location(location):
                     f"invalid type for LOCATION field {key}: {type(value)}; "
                     f"should be {valid_type}"
                     )) from e
-        if not isinstance(value, valid_type):
+        elif not isinstance(value, valid_type):
             raise ValueError((
                     f"invalid type for LOCATION field {key}: {type(value)}; "
                     f"should be {valid_type}"
@@ -362,7 +365,11 @@ def validate_json(json_input):
     Raises:
         ValueError: If the JSON input contains invalid fields or types.
     """
-    valid_fields = {x: type(y) for x, y in vars(s).items() if not x.startswith("_")}
+    valid_fields = {
+        x.lstrip('_'): type(y)
+        for x, y in vars(s).items()
+        if not x.startswith("_x_") and not x.startswith("__")
+        }
     for key, value in json_input.items():
         if key == "LOCATIONS":
             for location in value:

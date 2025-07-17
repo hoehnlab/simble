@@ -79,7 +79,7 @@ def do_differentiation(location, time):
     to_migrate = []
     migrate_size = min(
         int(
-            s._RNG.poisson(location.settings.migration_rate) # pylint: disable=protected-access
+            s.RNG.poisson(location.settings.migration_rate)
             ),
             len(current_generation)//2
             )
@@ -104,7 +104,7 @@ def do_differentiation(location, time):
 
     mbc_size, pc_size = get_mbc_pc_size(migrate_size, time)
     if mbc_size > 0:
-        mbcs = s._RNG.choice( # pylint: disable=protected-access
+        mbcs = s.RNG.choice(
             current_generation,
             size=mbc_size,
             replace=False)
@@ -114,7 +114,7 @@ def do_differentiation(location, time):
     if pc_size > 0:
         affinities = [x.cell.affinity for x in current_generation]
         p = np.array(affinities) / np.sum(affinities) if s.SELECTION else None
-        pcs = s._RNG.choice( # pylint: disable=protected-access
+        pcs = s.RNG.choice(
             current_generation,
             size=pc_size,
             p=p,
@@ -220,7 +220,7 @@ def simulate(clone_id, TARGET_PAIR, gc_start_generation, root, time=0): # pylint
             p = None
 
         for _ in range(available_antigen):
-            current_node = s._RNG.choice( # pylint: disable=protected-access
+            current_node = s.RNG.choice(
                 current_generation,
                 p=p
                 )
@@ -250,7 +250,7 @@ def simulate(clone_id, TARGET_PAIR, gc_start_generation, root, time=0): # pylint
         for location in locations:
             location.current_generation = make_new_generation(location)
 
-        targets = lambda x: (3*x, 3*x+1, 3*x+2)
+        targets = lambda x: (3*x, 3*x+1, 3*x+2) #pylint: disable=unnecessary-lambda-assignment
 
         row = get_data_points(
             GC.current_generation,
@@ -283,7 +283,7 @@ def simulate(clone_id, TARGET_PAIR, gc_start_generation, root, time=0): # pylint
                         len(location.current_generation)//2,
                         location.settings.sample_size
                         )
-                current_sample = s._RNG.choice( # pylint: disable=protected-access
+                current_sample = s.RNG.choice(
                     location.current_generation,
                     size=sample_size,
                     replace=False
