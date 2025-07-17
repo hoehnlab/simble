@@ -100,7 +100,7 @@ class TargetAminoAcid:
             exp_mean = -(s.MULTIPLIER-1)/np.log(1-s.CDR_VAR)
             exp_distribution = [
                 1 + x
-                for x in s._RNG.exponential(
+                for x in s.RNG.exponential(
                     exp_mean,
                     len(self.CDR_POSITIONS)
                     )
@@ -112,12 +112,12 @@ class TargetAminoAcid:
 
         if s.FWR_DIST == "exponential":
             exp_mean = -(s.MULTIPLIER-1)/np.log(1-s.FWR_VAR)
-            fwr_distribution = [1 + x for x in s._RNG.exponential(exp_mean, len(FWR_POSITIONS))]
+            fwr_distribution = [1 + x for x in s.RNG.exponential(exp_mean, len(FWR_POSITIONS))]
         elif s.FWR_DIST == "constant":
             fwr_distribution = [s.FWR_VAR for _ in range(len(FWR_POSITIONS))]
         elif s.FWR_DIST == "constant-noise":
             fwr_distribution = [
-                s.FWR_VAR + s._RNG.normal(0, 0.1)
+                s.FWR_VAR + s.RNG.normal(0, 0.1)
                 for _ in range(len(FWR_POSITIONS))
                 ]
         else:
@@ -159,7 +159,7 @@ class TargetAminoAcid:
                     continue
                 possible_codon.append(codon[:i] + replacement + codon[i+1:])
 
-        new_codon = s._RNG.choice(possible_codon) # pylint: disable=protected-access
+        new_codon = s.RNG.choice(possible_codon) # pylint: disable=protected-access
         new_amino_acid = translate_to_amino_acid(new_codon)
         return new_codon, new_amino_acid
 
@@ -169,6 +169,9 @@ class TargetAminoAcid:
         Args:
             n (int): The number of mutations to apply.
         """
+        if self.amino_acid_seq == "" or n == 0:
+            self.mutation_locations = []
+            return
         CDR_PROB = 1 # pylint: disable=invalid-name
         OTHER_PROB = 0 # pylint: disable=invalid-name
         mutate_probability = []
@@ -186,7 +189,7 @@ class TargetAminoAcid:
         if True in is_nan:
             print("NaN in mutate probability!")
             mutate_probability=None
-        mutate_positions = s._RNG.choice( # pylint: disable=protected-access
+        mutate_positions = s.RNG.choice( # pylint: disable=protected-access
             range(len(amino_acid_seq)),
             size=n,
             p=mutate_probability,

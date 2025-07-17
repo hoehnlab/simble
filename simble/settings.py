@@ -83,7 +83,7 @@ class Settings(Encodable):
         UNIFORM (bool): Whether to use a uniform mutation model.
         RESULTS_DIR (str): Directory for saving results.
         MULTIPLIER (float): Multiplier for affinity calculations.
-        _RNG (random.Random): Random number generator instance.
+        _x_RNG (random.Random): Random number generator instance.
         DEV (bool): Development mode flag.
         FASTA (bool): Whether to output results in FASTA format.
         VERBOSE (bool): Verbosity level for logging.
@@ -97,6 +97,7 @@ class Settings(Encodable):
         KEEP_FULL_TREE (bool): Whether to keep the full tree of cells.
         QUIET (bool): Whether to suppress output.
     """
+    # pylint: disable=invalid-name
 
     def __init__(self):
         # pylint: disable=invalid-name
@@ -121,11 +122,10 @@ class Settings(Encodable):
         self.LIGHT_SHM_PER_SITE = 0.0004923076923076923
         self.TARGET_MUTATIONS_HEAVY = 5
         self.TARGET_MUTATIONS_LIGHT = 2
-        self.SELECTION = True
-        self.UNIFORM = False
+        self._UNIFORM = False
         self.RESULTS_DIR = ""
         self.MULTIPLIER = 2
-        self._RNG = None # pylint: disable=protected-access
+        self._x_RNG = None # pylint: disable=protected-access
         self.DEV = False
         self.FASTA = False
         self.VERBOSE = False
@@ -138,9 +138,51 @@ class Settings(Encodable):
         self.MEMORY_SAVE = False
         self.KEEP_FULL_TREE = False
         self.QUIET = False
+        self.SEQUENCE_LENGTH = 370 # default for uniform seqs, avg heavy len
+        self._SELECTION = True
 
     @property
-    def END_TIME(self): # pylint: disable=invalid-name
+    def RNG(self):
+        """Returns the random number generator instance."""
+        return self._x_RNG
+
+    @property
+    def SELECTION(self):
+        """Returns whether selection is applied in the simulation."""
+        return self._SELECTION
+
+    @SELECTION.setter
+    def SELECTION(self, value):
+        """Sets whether selection is applied in the simulation."""
+        if self.UNIFORM and value:
+            logger.warning(("Uniform mutation/substitution model specified, "
+            "ignoring specified selection"))
+            self._SELECTION = False
+        else:
+            self._SELECTION = value
+
+        if not value:
+            self.TARGET_MUTATIONS_HEAVY = 0
+            self.TARGET_MUTATIONS_LIGHT = 0
+
+    @property
+    def UNIFORM(self):
+        """Returns whether a uniform mutation model is used."""
+        return self._UNIFORM
+
+    @UNIFORM.setter
+    def UNIFORM(self, value):
+        """Sets whether a uniform mutation model is used."""
+        if value and self.SELECTION:
+            self.SELECTION = False
+        if value and s.LIGHT_SHM_PER_SITE != 0:
+            logger.warning(("Uniform mutation and substitution model specified, "
+            "ignoring light chain"))
+            s.LIGHT_SHM_PER_SITE = 0
+        self._UNIFORM = value
+
+    @property
+    def END_TIME(self):
         """Calculates the end time of the simulation based on sample times."""
         def _max_sample_time(sample_times):
             if len(sample_times) > 0:
@@ -157,8 +199,5 @@ class Settings(Encodable):
                 continue
             setattr(self, key, value)
 
-        if self.UNIFORM and self.SELECTION:
-            logger.warning("Uniform mutation/substitution model specified, ignoring selection")
-            self.SELECTION = False
 
 s = Settings()

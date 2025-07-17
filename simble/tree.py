@@ -104,7 +104,7 @@ class Node:
 
     def _propogate_identical_children_count(self):
         if self.cell.location.name == LocationName.OTHER:
-            # TODO(jf): change this if we change the way we handle
+            # TODO (jf): change this if we change the way we handle
             # reproduction in the other tissue
             return
         self.identical_children += 1

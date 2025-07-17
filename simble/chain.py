@@ -82,6 +82,9 @@ class Chain:
 
         if nucleotide_seq is None:
             raise ValueError("nucleotide_seq must be provided")
+        if nucleotide_seq == "" and self.__class__ != EmptyChain:
+            self.__class__ = EmptyChain
+
         self.nucleotide_seq = nucleotide_seq
         self.nucleotide_gaps = self._get_gaps(gapped_seq, nucleotide_gaps)
         if amino_acid_seq is None:
@@ -215,7 +218,7 @@ class Chain:
         """
 
         if n is None:
-            n = s._RNG.poisson(self.mutate_probability*cell_mutation_rate) # pylint: disable=protected-access
+            n = s.RNG.poisson(self.mutate_probability*cell_mutation_rate)
 
         if n == 0:
             return n
@@ -223,7 +226,7 @@ class Chain:
         padded_seq = "NN" + self.nucleotide_seq + "NN"
         for _ in range(n):
             probability_map = np.array(self.mutability_map) / np.sum(self.mutability_map)
-            mutated_position = s._RNG.choice( # pylint: disable=protected-access
+            mutated_position = s.RNG.choice(
                 range(len(self.nucleotide_seq)),
                 size=1,
                 p=probability_map,
@@ -233,7 +236,7 @@ class Chain:
                 padded_seq[mutated_position:mutated_position+5],
                 self.IS_HEAVY
                 )
-            substitution = s._RNG.choice( # pylint: disable=protected-access
+            substitution = s.RNG.choice(
                 ["A", "C", "G", "T"],
                 p=probabilities
                 )
@@ -294,7 +297,7 @@ class Chain:
         cdr_mutations = 0
         target_site_mutations = 0
         gapped = self.get_gapped_sequence()
-        for i in range(312):
+        for i in range(min(312, len(germline_gapped))):
             if gapped[i] != germline_gapped[i]:
                 observed_mutations += 1
                 if i in targets:
@@ -312,6 +315,8 @@ class Chain:
 
     def as_AIRR(self, generation): # pylint: disable=invalid-name
         """Generates a dictionary representation of the chain in AIRR format"""
+        if len(self.nucleotide_seq) == 0:
+            return {}
         generated = {
             "sequence_id": "heavy" if self.IS_HEAVY else "light",
             "sequence": self.nucleotide_seq,
@@ -403,3 +408,51 @@ class LightChain(Chain):
 
     def get_target_from_pair(self, target_pair):
         return target_pair.light
+
+
+class EmptyChain(Chain):
+    """ Represents an empty chain, used when no chain is available."""
+    @property
+    def IS_HEAVY(self):
+        return False
+
+    @property
+    def shm_per_site(self):
+        return 0
+
+    def __init__(self):
+        super().__init__(
+            nucleotide_seq="",
+            amino_acid_seq="",
+            gapped_seq="",
+            cdr3_aa_length=0
+            )
+        self.similarity = 1
+        self.fwr_similarity = 1
+        self.cdr_similarity = 1
+
+    def as_AIRR(self, generation): # pylint: disable=invalid-name
+        """Returns an empty dictionary for AIRR format since this chain has no sequence."""
+        return {}
+
+    def get_observed_mutations(self, germline_gapped, targets):
+        """ 
+        Returns no observed mutations, filtered mutations, CDR mutations, and FWR mutations 
+        since the sequence does not exist.
+        """
+        return (0, 0, 0, 0)
+
+    def get_target_from_pair(self, target_pair):
+        return None
+
+    def calculate_affinity(self, target_pair):
+        """Returns 1 as the affinity for an empty chain, indicating no effect on binding."""
+        return 1
+
+    def mutate(self, cell_mutation_rate, n=None):
+        """ Does nothing for EmptyChain, as it has no sequence to mutate."""
+        return 0
+
+    def copy(self):
+        """Creates a new EmptyChain object"""
+        return EmptyChain()

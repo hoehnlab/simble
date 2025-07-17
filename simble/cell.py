@@ -19,7 +19,7 @@
 
 from enum import Enum
 
-from .chain import HeavyChain, LightChain
+from .chain import HeavyChain, LightChain, EmptyChain
 from .helper import get_random_start_pair
 from .location import LocationName
 from .settings import s
@@ -49,26 +49,25 @@ class Cell:
             is_alive=True,
             location=LocationName.GC,
             cell_type=CellType.DEFAULT) -> None:
-        if heavy_chain is None and light_chain is None:
-            pair = get_random_start_pair()
-            heavy_chain = HeavyChain(
-                nucleotide_seq=pair.heavy.input.chain,
-                gapped_seq=pair.heavy.input.aligned,
-                cdr3_aa_length=pair.heavy.input.cdr3_aa_length,
-                junction=pair.heavy.input.junction)
-            heavy_chain.airr_constants = pair.heavy.constants
-            light_chain = LightChain(
-                nucleotide_seq=pair.light.input.chain,
-                gapped_seq=pair.light.input.aligned,
-                cdr3_aa_length=pair.light.input.cdr3_aa_length,
-                junction=pair.light.input.junction)
-            light_chain.airr_constants = pair.light.constants
+        if heavy_chain is None:
+            heavy, light = get_random_start_pair()
+            heavy_chain = HeavyChain(**heavy.chain._asdict())
+            heavy_chain.airr_constants = heavy.constants
+            light_chain = LightChain(**light.chain._asdict())
+            light_chain.airr_constants = light.constants
+
+        if light_chain is None:
+            light_chain = EmptyChain()
+        if isinstance(light_chain, EmptyChain):
+            self.__class__ = SingleChainCell
+
         self.heavy_chain = heavy_chain
         self.light_chain = light_chain
         self.created_at = created_at
         self.is_alive = is_alive
         self.location = location
         self.cell_type = cell_type
+
         self.mutation_rate = s.LOCATIONS[0].mutation_rate if self.location == LocationName.GC else 0
         self.affinity = 1
 
@@ -117,7 +116,7 @@ class Cell:
 
     def remake_self(self):
         """Creates a new Cell instance with the same properties."""
-        new = Cell(
+        new = type(self)(
             self.heavy_chain,
             self.light_chain,
             self.created_at,
@@ -142,3 +141,30 @@ class Cell:
     def differentiate(self, cell_type):
         """Changes the cell type to a different type."""
         self.cell_type = cell_type
+
+
+
+class SingleChainCell(Cell):
+    """Represents a cell with only one chain (heavy)."""
+
+    def as_AIRR(self, generation): # pylint: disable=invalid-name
+        """Returns the cell data in AIRR format."""
+        heavy = self._add_cell_AIRR(self.heavy_chain.as_AIRR(generation))
+        return [heavy]
+
+    def as_fasta(self, generation):
+        """Returns both chains with cell data in FASTA format."""
+        heavy = self.as_fasta_helper(generation, heavy=True)
+        return heavy
+
+    def calculate_affinity(self, target_pair):
+        """Calculates the affinity of the cell's chain to a target pair."""
+        self.affinity = self.heavy_chain.calculate_affinity(target_pair)
+
+        if not self.heavy_chain.is_functional:
+            self.affinity = 0
+
+    def mutate_cell(self):
+        """Mutates the cell's heavy chain."""
+        heavy_n = self.heavy_chain.mutate(self.mutation_rate)
+        return heavy_n, 0
