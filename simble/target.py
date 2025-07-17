@@ -159,7 +159,7 @@ class TargetAminoAcid:
                     continue
                 possible_codon.append(codon[:i] + replacement + codon[i+1:])
 
-        new_codon = s.RNG.choice(possible_codon) # pylint: disable=protected-access
+        new_codon = s.RNG.choice(possible_codon)
         new_amino_acid = translate_to_amino_acid(new_codon)
         return new_codon, new_amino_acid
 
