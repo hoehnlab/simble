@@ -220,7 +220,7 @@ def simulate(clone_id, TARGET_PAIR, gc_start_generation, root, time=0): # pylint
             p = None
 
         for _ in range(available_antigen):
-            current_node = s.RNG.choice( # pylint: disable=protected-access
+            current_node = s.RNG.choice(
                 current_generation,
                 p=p
                 )
