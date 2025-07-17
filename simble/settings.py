@@ -175,10 +175,10 @@ class Settings(Encodable):
         """Sets whether a uniform mutation model is used."""
         if value and self.SELECTION:
             self.SELECTION = False
-        if value and s.LIGHT_SHM_PER_SITE != 0:
+        if value and self.LIGHT_SHM_PER_SITE != 0:
             logger.warning(("Uniform mutation and substitution model specified, "
             "ignoring light chain"))
-            s.LIGHT_SHM_PER_SITE = 0
+            self.LIGHT_SHM_PER_SITE = 0
         self._UNIFORM = value
 
     @property
