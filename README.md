@@ -41,9 +41,18 @@ To specify an output folder for default simulation:
 simble -o <path-to-folder>
 ```
 
-To run a neutral simulation:
+To run a neutral-selection BCR simulation (using naive BCRs, heavy and light chains, and S5F mutation/substitution model):
 ```sh
 simble --neutral [other args]
+```
+
+To run a uniformly neutral simulation (no selection, randomly generated starting nucleotide sequence, and uniform mutations/substitutions):
+```sh
+simble --uniform [other args]
+```
+To run a uniformly neutral simulation with a specified sequence length of 100:
+```sh
+simble --uniform --sequence-length 100 [other args]
 ```
 
 To run with expected migration of one cell every 25 generations:
@@ -75,6 +84,7 @@ Frequently used arguments:
 | --neutral | | | if provided, runs a neutral simulation|
 | --migration-rate| | 0 | expected number of cells that leave the germinal center each generation|
 | --samples | -s | [0 200 25] | start, stop, step, to specify sample times other than the default|
+| --quiet | -q | | don't display progress bar
 
 
 ## Development
@@ -132,6 +142,12 @@ Available arguments:
         <td></td>
         <td>if provided, runs a neutral simulation</td>
     </tr>
+        <tr>
+        <td>--uniform</td>
+        <td></td>
+        <td></td>
+        <td>if provided, runs a uniform neutral simulation</td>
+    </tr>
     <tr>
         <td>--migration-rate</td>
         <td></td>
@@ -154,25 +170,43 @@ Available arguments:
         <td>start, stop, step, to specify &quot;Other&quot; location sample times</td>
     </tr>
     <tr>
+        <td>--sample-size</td>
+        <td></td>
+        <td>50</td>
+        <td>specify sample size for 'GC' location</td>
+    </tr>
+    <tr>
+        <td>--sample-size-other</td>
+        <td></td>
+        <td>12</td>
+        <td>specify sample size for the 'Other' location</td>
+    </tr>
+    <tr>
     <td colspan=4> <b><i>Model parameters</i></b> </td>
     </tr>
     <tr>
-        <td>--multiplier</td>
-        <td>-m</td>
-        <td>2</td>
-        <td>selection multiplier</td>
+        <td>--sequence-length</td>
+        <td></td>
+        <td>370</td>
+        <td>length of the sequence to simulate if uniform</td>
     </tr>
     <tr>
-        <td>--heavy-mutate-probability</td>
-        <td></td>
-        <td>0.5</td>
-        <td>expected number of heavy chain mutations each division</td>
+        <td>--antigen</td>
+        <td>-a</td>
+        <td>1000</td>
+        <td>amount of antigen</td>
     </tr>
     <tr>
-        <td>--light-mutate-probability</td>
+        <td>--heavy-shm</td>
         <td></td>
-        <td>0.25</td>
-        <td>expected number of light chain mutations each division</td>
+        <td>0.0008908272571108565</td>
+        <td>expected number of heavy chain mutations each division per site</td>
+    </tr>
+    <tr>
+        <td>--light-shm</td>
+        <td></td>
+        <td>0.0004923076923076923</td>
+        <td>expected number of light chain mutations each division per site</td>
     </tr>
     <tr>
         <td>--target-mutations-heavy</td>
@@ -186,8 +220,44 @@ Available arguments:
         <td>2</td>
         <td>number of amino acid mutations the target light chain should have</td>
     </tr>
+        <tr>
+        <td>--cdr-dist</td>
+        <td></td>
+        <td></td>
+        <td>cdr distribution (constant or exponential)</td>
+    </tr>
+    <tr>
+        <td>--cdr-var</td>
+        <td></td>
+        <td></td>
+        <td>cdr variable</td>
+    </tr>
+    <tr>
+        <td>--fwr-dist</td>
+        <td></td>
+        <td></td>
+        <td>fwr distribution (constant or exponential)</td>
+    </tr>
+    <tr>
+        <td>--fwr-var</td>
+        <td></td>
+        <td></td>
+        <td>fwr variable</td>
+    </tr>
+    <tr>
+        <td>--multiplier</td>
+        <td>-m</td>
+        <td>2</td>
+        <td>selection multiplier</td>
+    </tr>
     <tr>
     <td colspan=4> <b><i>Program settings</i></b> </td>
+    </tr>
+    <tr>
+        <td>--quiet</td>
+        <td>-q</td>
+        <td></td>
+        <td>if present, progress bar suppressed</td>
     </tr>
     <tr>
         <td>--verbose</td>
@@ -214,10 +284,10 @@ Available arguments:
         <td>if present, run in dev mode (not recommended)</td>
     </tr>
     <tr>
-        <td>--seeds</td>
+        <td>--seed</td>
         <td></td>
         <td></td>
-        <td>a list of RNG seeds to reproduce specific simulations</td>
+        <td>an RNG seed to reproduce specific simulations</td>
     </tr>
 </table>
 
