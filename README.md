@@ -82,6 +82,7 @@ Frequently used arguments:
 | --number | -n | 1 | number of clones to simulate |
 | --processes| -p | 1 | number of processes (multiprocessing) |
 | --neutral | | | if provided, runs a neutral simulation|
+| --uniform | | | if provided, runs a uniform neutral simulation |
 | --migration-rate| | 0 | expected number of cells that leave the germinal center each generation|
 | --samples | -s | [0 200 25] | start, stop, step, to specify sample times other than the default|
 | --quiet | -q | | don't display progress bar
