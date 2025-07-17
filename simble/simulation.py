@@ -114,7 +114,7 @@ def do_differentiation(location, time):
     if pc_size > 0:
         affinities = [x.cell.affinity for x in current_generation]
         p = np.array(affinities) / np.sum(affinities) if s.SELECTION else None
-        pcs = s.RNG.choice( # pylint: disable=protected-access
+        pcs = s.RNG.choice(
             current_generation,
             size=pc_size,
             p=p,
