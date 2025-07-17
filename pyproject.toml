@@ -11,15 +11,33 @@ authors = [
 ]
 classifiers = [
     "Programming Language :: Python :: 3",
-    "License :: OSI Approved :: GNU Affero General Public License v3",
     "Operating System :: OS Independent",
 ]
 readme = "README.md"
+license= "AGPL-3.0-or-later"
+license-files = ["LICEN[CS]E*"]
 dependencies = [
     "numpy>=1.17.0",
     "pandas",
     "matplotlib",
     "tqdm",
+]
+description = "Simble is a simulation tool for B cell receptor (BCR) somatic hypermutation (SHM) and affinity maturation. Simble models B cells in the germinal center and their differentiation and migration to other tissues."
+keywords = [
+    "B cell",
+    "B cell receptor",
+    "BCR",
+    "somatic hypermutation",
+    "SHM",
+    "germinal center",
+    "B cell differentiation",
+    "B cell development",
+    "repertoire",
+    "AIRR",
+    "immune system",
+    "adaptive immune system",
+    "immunology",
+    "biology",
 ]
 
 [project.scripts]
