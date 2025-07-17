@@ -283,7 +283,7 @@ def simulate(clone_id, TARGET_PAIR, gc_start_generation, root, time=0): # pylint
                         len(location.current_generation)//2,
                         location.settings.sample_size
                         )
-                current_sample = s.RNG.choice( # pylint: disable=protected-access
+                current_sample = s.RNG.choice(
                     location.current_generation,
                     size=sample_size,
                     replace=False
