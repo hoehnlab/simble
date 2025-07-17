@@ -104,7 +104,7 @@ def do_differentiation(location, time):
 
     mbc_size, pc_size = get_mbc_pc_size(migrate_size, time)
     if mbc_size > 0:
-        mbcs = s.RNG.choice( # pylint: disable=protected-access
+        mbcs = s.RNG.choice(
             current_generation,
             size=mbc_size,
             replace=False)
