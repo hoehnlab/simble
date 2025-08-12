@@ -147,7 +147,7 @@ class Node:
             f"occupancy={self.occupancy},"
             f"occupancy_other={self.occupancy_other},"
             f"identical_children={self.identical_children},"
-            f"cell_type={self.cell.cell_type.value},"
+            f"celltype={self.cell.cell_type.value},"
             f"time_of_differentiation={self.last_migration},"
             f"antigen={self.antigen}"
         )
