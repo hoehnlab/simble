@@ -22,6 +22,10 @@ import numpy as np
 from .helper import translate_to_amino_acid
 from .settings import s
 
+# IMGT conserved sites are 23, 41, 89, 104, 104+cdr3+1, but cdr3 is variable
+# python is 0-indexed so we need to subtract 1
+CONSERVED_SITES = [23-1, 41-1, 89-1, 104-1]
+
 
 class TargetAminoPair:
     """Represents a pair of target amino acids for heavy and light chains.
@@ -132,8 +136,14 @@ class TargetAminoAcid:
             FWR_POSITIONS[i]: fwr_distribution[i]
             for i in range(len(FWR_POSITIONS))
             }
+        self.conserved_sites = CONSERVED_SITES + [CONSERVED_SITES[-1] + cdr3_length + 1]
+        conserved_multipliers = {
+            x: s.MULTIPLIER * 1.25
+            for x in self.conserved_sites
+        }
         self.all_multipliers.update(self.cdr_multipliers)
         self.all_multipliers.update(self.fwr_multipliers)
+        self.all_multipliers.update(conserved_multipliers)
 
     @property
     def max_affinity(self):
@@ -180,6 +190,8 @@ class TargetAminoAcid:
         nucleotide_seq = self.gapped_nucleotide_seq
         for i, amino_acid in enumerate(amino_acid_seq):
             if amino_acid in ["X", "_"]:
+                mutate_probability.append(0)
+            elif i in self.conserved_sites:
                 mutate_probability.append(0)
             elif i in self.CDR_POSITIONS:
                 mutate_probability.append(CDR_PROB)
