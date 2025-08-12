@@ -27,9 +27,9 @@ from .settings import s
 
 class CellType(Enum):
     """Enum representing different cell types in the simulation."""
-    DEFAULT = "default"
-    PC = "Plasma Cell"
-    MBC = "Memory B Cell"
+    DEFAULT = "gc_b_cell"
+    PC = "plasma_cell"
+    MBC = "memory_b_cell"
 
 class Cell:
     """Represents a cell in the simulation.
