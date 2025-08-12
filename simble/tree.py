@@ -147,6 +147,8 @@ class Node:
             f"occupancy={self.occupancy},"
             f"occupancy_other={self.occupancy_other},"
             f"identical_children={self.identical_children},"
+            f"cell_type={self.cell.cell_type.value},"
+            f"time_of_differentiation={self.last_migration},"
             f"antigen={self.antigen}"
         )
         if time_tree:
@@ -177,7 +179,7 @@ class Node:
         newick = ""
 
         def add_to_newick_dict(node, newick):
-            # for memory efficiency, once we're adding this node's newick to its parent
+            # for memory efficiency, once we've added this node's newick to its parent
             # we can remove it from the dict
             if node.parent is None:
                 return newick
