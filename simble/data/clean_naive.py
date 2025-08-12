@@ -60,6 +60,6 @@ def create_naive_table(heavy_file, light_file):
 
 
 
-NAIVE = create_naive_table("naive_heavy_chain.tsv", "naive_light_chain.tsv")
+NAIVE = create_naive_table("naive_heavy_chain_filtered_no_mutations.tsv", "naive_light_chain_filtered_no_mutations.tsv")
 
 NAIVE.to_csv("naive_pairs_filtered.csv", index=False)
