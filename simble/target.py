@@ -136,6 +136,7 @@ class TargetAminoAcid:
             FWR_POSITIONS[i]: fwr_distribution[i]
             for i in range(len(FWR_POSITIONS))
             }
+        # CONSERVED_SITES is zero-indexed, so calculate last conserved position relative to that
         self.conserved_sites = CONSERVED_SITES + [CONSERVED_SITES[-1] + cdr3_length + 1]
         conserved_multipliers = {
             x: s.MULTIPLIER * 1.25
