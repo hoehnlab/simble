@@ -89,9 +89,9 @@ class TargetAminoAcid:
         # IMGT numbering: CDR1 = 27-38 CDR2 = 56-65 CDR3 = 105 to 105+CDR3_length
         # but python is 0-indexed so we need to subtract 1
         self.CDR_POSITIONS = ( # pylint: disable=invalid-name
-            list(range(27-1, 39-1))
-            + list(range(56-1, 66-1))
-            + list(range(105-1, 105-1+cdr3_length))
+            list(range(27-1, (38-1)+1)) # add 1 because range() is right exclusive
+            + list(range(56-1, (65-1)+1))
+            + list(range(105-1, (105-1)+cdr3_length))
         )
         self.amino_acid_seq = translate_to_amino_acid(self.gapped_nucleotide_seq)
         FWR_POSITIONS = [ # pylint: disable=invalid-name
