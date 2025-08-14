@@ -22,6 +22,10 @@ import numpy as np
 from .helper import translate_to_amino_acid
 from .settings import s
 
+# IMGT conserved sites are 23, 41, 89, 104, 104+cdr3+1, but cdr3 is variable
+# python is 0-indexed so we need to subtract 1
+CONSERVED_SITES = [23-1, 41-1, 89-1, 104-1]
+
 
 class TargetAminoPair:
     """Represents a pair of target amino acids for heavy and light chains.
@@ -82,11 +86,12 @@ class TargetAminoAcid:
             cdr3_length
             ):
         self.gapped_nucleotide_seq = gapped_nucleotide_seq
-        # CDR1 = 27-38 CDR2 = 56-65 CDR3 = 105 to 105+CDR3_length
+        # IMGT numbering: CDR1 = 27-38 CDR2 = 56-65 CDR3 = 105 to 105+CDR3_length
+        # but python is 0-indexed so we need to subtract 1
         self.CDR_POSITIONS = ( # pylint: disable=invalid-name
-            list(range(27, 39))
-            + list(range(56, 66))
-            + list(range(105, 105+cdr3_length))
+            list(range(27-1, (38-1)+1)) # add 1 because range() is right exclusive
+            + list(range(56-1, (65-1)+1))
+            + list(range(105-1, (105-1)+cdr3_length))
         )
         self.amino_acid_seq = translate_to_amino_acid(self.gapped_nucleotide_seq)
         FWR_POSITIONS = [ # pylint: disable=invalid-name
@@ -131,8 +136,15 @@ class TargetAminoAcid:
             FWR_POSITIONS[i]: fwr_distribution[i]
             for i in range(len(FWR_POSITIONS))
             }
+        # CONSERVED_SITES is zero-indexed, so calculate last conserved position relative to that
+        self.conserved_sites = CONSERVED_SITES + [CONSERVED_SITES[-1] + cdr3_length + 1]
+        conserved_multipliers = {
+            x: s.MULTIPLIER * 1.25
+            for x in self.conserved_sites
+        }
         self.all_multipliers.update(self.cdr_multipliers)
         self.all_multipliers.update(self.fwr_multipliers)
+        self.all_multipliers.update(conserved_multipliers)
 
     @property
     def max_affinity(self):
@@ -179,6 +191,8 @@ class TargetAminoAcid:
         nucleotide_seq = self.gapped_nucleotide_seq
         for i, amino_acid in enumerate(amino_acid_seq):
             if amino_acid in ["X", "_"]:
+                mutate_probability.append(0)
+            elif i in self.conserved_sites:
                 mutate_probability.append(0)
             elif i in self.CDR_POSITIONS:
                 mutate_probability.append(CDR_PROB)

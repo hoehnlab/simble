@@ -19,11 +19,20 @@
 
 import pandas as pd
 
-AIRR_REQUIRED_FIELDS = ['sequence_id', 'sequence', 'rev_comp', 'productive', 'v_call', 'd_call', 'j_call', 'sequence_alignment', 'germline_alignment', 'junction', 'junction_aa', 'v_cigar', 'd_cigar', 'j_cigar', 'np1_length', 'v_germline_start', 'v_germline_end', 'd_germline_start', 'd_germline_end', 'j_germline_start', 'j_germline_end', 'germline_alignment_d_mask', 'locus']
+AIRR_REQUIRED_FIELDS = ['sequence_id', 'sequence', 'rev_comp', 'productive',
+                        'v_call', 'd_call', 'j_call', 'sequence_alignment',
+                        'germline_alignment', 'junction', 'junction_aa', 'v_cigar',
+                        'd_cigar', 'j_cigar', 'np1_length', 'v_germline_start',
+                        'v_germline_end', 'd_germline_start', 'd_germline_end',
+                        'j_germline_start', 'j_germline_end',
+                        'germline_alignment_d_mask', 'locus']
 
-AIRR_FIELDS_TO_GENERATE = ['sequence_id', 'sequence', 'sequence_alignment', 'germline_alignment'] 
+ALIGNMENT_FIELDS = ["v_germline_length", "d_germline_length", "j_germline_length",
+                    'np2_length']
 
-AIRR_FIELDS_TO_KEEP = [x for x in AIRR_REQUIRED_FIELDS if x not in AIRR_FIELDS_TO_GENERATE]
+AIRR_FIELDS_TO_GENERATE = ['sequence_id', 'sequence', 'sequence_alignment', 'germline_alignment']
+
+AIRR_FIELDS_TO_KEEP = [x for x in AIRR_REQUIRED_FIELDS + ALIGNMENT_FIELDS if x not in AIRR_FIELDS_TO_GENERATE]
 
 FIELDS_NEEDED_AS_INPUT = ["new_cell_id", "sequence", "sequence_alignment", "cdr3"]
 def create_naive_table(heavy_file, light_file):
@@ -51,6 +60,6 @@ def create_naive_table(heavy_file, light_file):
 
 
 
-NAIVE = create_naive_table("naive_heavy_chain.tsv", "naive_light_chain.tsv")
+NAIVE = create_naive_table("naive_heavy_chain_filtered_no_mutations.tsv", "naive_light_chain_filtered_no_mutations.tsv")
 
 NAIVE.to_csv("naive_pairs_filtered.csv", index=False)

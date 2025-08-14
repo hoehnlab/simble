@@ -47,12 +47,15 @@ AIRR_REQUIRED_FIELDS = [
     'j_germline_end', 'locus'
     ]
 
+ALIGNMENT_FIELDS = ["v_germline_length", "d_germline_length", "j_germline_length",
+                    "np2_length"]
+
 AIRR_FIELDS_TO_GENERATE = [
     'sequence_id', 'sequence', 'sequence_alignment', 'germline_alignment',
     'location', 'sample_time', 'junction', 'junction_aa', 'junction_length'
     ]
 
-AIRR_FIELDS_TO_KEEP = [x for x in AIRR_REQUIRED_FIELDS if x not in AIRR_FIELDS_TO_GENERATE]
+AIRR_FIELDS_TO_KEEP = [x for x in AIRR_REQUIRED_FIELDS + ALIGNMENT_FIELDS if x not in AIRR_FIELDS_TO_GENERATE]
 
 ALL_TREE_NAMES = [
     "full_tree",
@@ -233,6 +236,7 @@ def _format_random_start_chain(row, chain_type):
         x:row[f'{chain_type}_{x}'].values[0] for x in AIRR_FIELDS_TO_KEEP
     }
     constants["germline_alignment"] = start_input.gapped_seq
+    constants["cdr3_aa_length"] = start_input.cdr3_aa_length
     return StartConstants(start_input, constants)
 
 
