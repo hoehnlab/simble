@@ -1,0 +1,28 @@
+.github-table {
+    width: 100%;
+    border-collapse: collapse; /* Removes spacing between cell borders */
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Helvetica, Arial, sans-serif, "Apple Color Emoji", "Segoe UI Emoji";
+    font-size: 14px;
+    line-height: 1.5;
+    color: #24292e; /* GitHub's default text color */
+}
+/* Table header cells */
+.github-table th {
+    background-color: #ffffff; /* Light grey background for headers */
+    font-weight: 600; /* Semi-bold for headers */
+    padding: 10px 15px;
+    text-align: left;
+    border: 1px solid #dfe2e5; /* Subtle border for headers */
+}
+/* Table data cells */
+.github-table td {
+    padding: 10px 15px;
+    border: 1px solid #dfe2e5; /* Subtle border for data cells */
+}
+/* Alternating row colors (zebra striping) */
+.github-table tr:nth-child(odd) {
+    background-color: #ffffff; /* White background for odd rows */
+}
+.github-table tr:nth-child(even) {
+    background-color: #f6f8fa; /* Light grey background for even rows */
+}
