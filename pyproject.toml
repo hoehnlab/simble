@@ -40,6 +40,13 @@ keywords = [
     "biology",
 ]
 
+[project.optional-dependencies]
+docs = [
+    "sphinx>=8.0",
+    "sphinxcontrib-napoleon",
+    "sphinx-RTD-theme",
+]
+
 [project.scripts]
 simble = "simble.simble:main"
 
