@@ -1,7 +1,7 @@
 How simble works
 ================
 
-.. image:: ../_static/simble-outline.svg
+.. image:: _static/simble-outline.svg
    :align: center
    :alt: simble outline
 
