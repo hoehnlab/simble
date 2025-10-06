@@ -27,6 +27,7 @@ from .settings import s
 
 def get_parser():
     """Creates and returns an argument parser for the simble program.
+
     Returns:
         argparse.ArgumentParser: The argument parser for the simble program.
     """
@@ -225,6 +226,7 @@ def _update_setting(name, value):
 
 def validate_samples(sample_info):
     """Validates the sampling settings.
+
     Args:
         sample_info (list): A list containing start, stop, and step values.
     Raises:
@@ -239,6 +241,7 @@ def validate_samples(sample_info):
 
 def validate_and_process_args(args):
     """Validates and processes command line arguments and updates the simulation settings.
+
     Args:
         args (argparse.Namespace): The parsed command line arguments.
     Returns:
@@ -320,6 +323,7 @@ def validate_and_process_args(args):
 
 def validate_location(location):
     """Validates a location dictionary.
+
     Args:
         location (dict): A dictionary representing a location.
     Raises:
@@ -360,6 +364,7 @@ def _validate_numeric(value, valid_type):
 
 def validate_json(json_input):
     """Validates the JSON input against the global settings object.
+
     Args:
         json_input (dict): The JSON input to validate.
     Raises:
@@ -394,6 +399,7 @@ def validate_json(json_input):
 
 def read_from_json(filename):
     """Reads a JSON file and returns its contents as a dictionary.
+    
     Args:
         filename (str): The path to the JSON file.
     Returns:

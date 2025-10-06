@@ -31,6 +31,7 @@ class Encodable():
 
 class LocationSettings(Encodable):
     """Settings for a specific location in the simulation.
+
     Attributes:
         name (LocationName): The name of the location.
         sample_times (list): Times at which samples are taken.
@@ -73,6 +74,7 @@ class LocationSettings(Encodable):
 
 class Settings(Encodable):
     """Global settings for the simulation.
+    
     Attributes:
         LOCATIONS (list): List of LocationSettings for different locations.
         HEAVY_SHM_PER_SITE (float): SHM rate per site of the heavy chain.

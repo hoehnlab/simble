@@ -32,6 +32,7 @@ logger = logging.getLogger(__package__)
 _ROOT = os.path.abspath(os.path.dirname(__file__))
 def get_data(path):
     """Returns the absolute path to a data file in the simble package.
+
     Args:
         path (str): The relative path to the data file.
     Returns:
@@ -68,6 +69,7 @@ MEMORY_SAVE_TREE_NAMES = ["simplified_tree", "simplified_time_tree"]
 
 def read_sf5_table(filename):
     """Reads a CSV file containing the SF5 mutability table.
+
     Args:
         filename (str): The path to the CSV file.
     Returns:
@@ -93,6 +95,7 @@ StartConstants = namedtuple("StartConstants", ["chain", "constants"])
 
 def translate_to_amino_acid(nucleotide_seq):
     """ Translates a nucleotide sequence into an amino acid sequence.
+
     Args:
         nucleotide_seq (str): The nucleotide sequence to translate.
     Returns:
@@ -110,6 +113,7 @@ def translate_to_amino_acid(nucleotide_seq):
 
 def codon_to_amino_acid(codon):
     """Converts a codon (3-nucleotide sequence) to its corresponding amino acid.
+
     Args:
         codon (str): A 3-nucleotide sequence representing a codon.
     Returns:
@@ -141,6 +145,7 @@ def codon_to_amino_acid(codon):
 
 def get_substitution_probability(kmer, heavy=True):
     """Gets the substitution probabilities for a given kmer.
+
     Args:
         kmer (str): The 5-mer sequence for which to get substitution probabilities.
         heavy (bool): Whether to use the heavy chain substitution table.
@@ -159,6 +164,7 @@ def get_substitution_probability(kmer, heavy=True):
 
 def get_mutability_of_kmer(kmer, heavy=True):
     """Gets the mutability of a given kmer.
+
     Args:
         kmer (str): The 5-mer sequence for which to get mutability.
         heavy (bool): Whether to use the heavy chain mutability table.
@@ -178,6 +184,7 @@ def get_mutability_of_kmer(kmer, heavy=True):
 
 def remove_gaps(aligned):
     """Removes gaps from an aligned sequence.
+
     Args:
         aligned (str): The aligned sequence with gaps.
     Returns:
@@ -188,6 +195,7 @@ def remove_gaps(aligned):
 
 def get_random_start_pair():
     """Generates a random start pair of heavy and light chains.
+
     Returns:
         StartPair: A named tuple containing the heavy and light chains.
     """
@@ -219,6 +227,7 @@ def get_random_start_pair():
 
 def _format_random_start_chain(row, chain_type):
     """Formats a random start chain from a row of the naive pairs DataFrame.
+
     Args:
         row (pd.Series): A row from the naive pairs DataFrame.
         chain_type (str): The type of chain ('heavy' or 'light').
@@ -242,6 +251,7 @@ def _format_random_start_chain(row, chain_type):
 
 def make_plot(data, times, results_file, ylabel, title, log=False):
     """Creates a plot of the given data and saves it to a file.
+
     Args:
         data (np.ndarray): The data to plot.
         times (np.ndarray): The time points corresponding to the data.
@@ -263,6 +273,7 @@ def make_plot(data, times, results_file, ylabel, title, log=False):
 
 def make_bar_plot(data, results_file, xlabel, title):
     """Creates a bar plot of the given data and saves it to a file.
+
     Args:
         data (np.ndarray): The data to plot.
         results_file (str): The file path to save the plot.
@@ -279,6 +290,7 @@ def make_bar_plot(data, results_file, xlabel, title):
 
 def snake_case_to_normal(name):
     """Converts a snake_case string to a normal string with spaces.
+
     Args:
         name (str): The snake_case string to convert.
     Returns:
@@ -288,6 +300,7 @@ def snake_case_to_normal(name):
 
 def _axis_label(name):
     """Converts a snake_case string to a more readable axis label.
+
     Args:
         name (str): The snake_case string to convert.
     Returns:
@@ -297,6 +310,7 @@ def _axis_label(name):
 
 def make_all_plots(df, result_dir, simulation=False):
     """Creates plots for all columns in the DataFrame and saves them to files.
+    
     Args:
         df (pd.DataFrame): The DataFrame containing the data to plot.
         result_dir (str): The directory to save the plots.

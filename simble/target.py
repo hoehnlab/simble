@@ -29,6 +29,7 @@ CONSERVED_SITES = [23-1, 41-1, 89-1, 104-1]
 
 class TargetAminoPair:
     """Represents a pair of target amino acids for heavy and light chains.
+
     Attributes:
         heavy (TargetAminoAcid): The target amino acid for the heavy chain.
         light (TargetAminoAcid): The target amino acid for the light chain.
@@ -41,6 +42,7 @@ class TargetAminoPair:
             light_cdr3_length
             ):
         """Initializes a TargetAminoPair instance.
+
         Args:
             heavy_gapped_nucleotide (str): The gapped nucleotide sequence for the heavy chain.
             light_gapped_nucleotide (str): The gapped nucleotide sequence for the light chain.
@@ -57,6 +59,7 @@ class TargetAminoPair:
 
     def mutate(self, heavy_n, light_n):
         """Creates target mutations in the target amino acid chains.
+
         Args:
             heavy_n (int): The number of mutations to apply to the heavy chain.
             light_n (int): The number of mutations to apply to the light chain."""
@@ -67,6 +70,7 @@ class TargetAminoPair:
 
 class TargetAminoAcid:
     """Represents a target amino acid sequence.
+
     Attributes:
         gapped_nucleotide_seq (str): The gapped nucleotide sequence of the target.
         CDR_POSITIONS (list): The positions of the CDR regions in the amino acid 
@@ -154,6 +158,7 @@ class TargetAminoAcid:
 
     def choose_replacement_nucleotide(self, codon, curr_amino_acid):
         """Chooses a replacement nucleotide for a codon that results in a different amino acid.
+
         Args:
             codon (str): The codon to mutate.
             curr_amino_acid (str): The current amino acid represented by the codon.
@@ -178,6 +183,7 @@ class TargetAminoAcid:
 
     def mutate(self, n):
         """Mutates the target amino acid sequence by replacing nucleotides.
+        
         Args:
             n (int): The number of mutations to apply.
         """

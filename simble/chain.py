@@ -281,6 +281,7 @@ class Chain:
 
     def get_observed_mutations(self, germline_gapped, targets):
         """ Calculates the observed mutations in the chain compared to a germline sequence.
+        
         Args:
             germline_gapped (str): The gapped germline sequence to compare against.
             targets (list): A list of target positions to exclude from the mutation count.

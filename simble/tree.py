@@ -24,6 +24,7 @@ logger = logging.getLogger(__package__)
 
 class Node:
     """Represents a node in the simulation tree.
+
     Attributes:
         cell (Cell): The cell associated with this node.
         parent (Node): The parent node in the tree.
@@ -47,6 +48,7 @@ class Node:
             clone_id=None
             ):
         """Initializes a Node instance.
+
         Args:
             cell (Cell): The cell associated with this node.
             parent (Node): The parent node in the tree.
@@ -113,6 +115,7 @@ class Node:
 
     def add_child(self, child):
         """Adds a child node to this node.
+
         Args:
             child (Node): The child node to add.
         """
@@ -123,6 +126,7 @@ class Node:
 
     def write_newick(self, time_tree=False):
         """Writes the node and its children in Newick format.
+
         Args:
             time_tree (bool): Whether to write the tree with time information.
         Returns:
@@ -132,6 +136,7 @@ class Node:
 
     def write_newick_node(self, time_tree=False, subtrees=None):
         """Writes the node in Newick format.
+
         Args:
             time_tree (bool): Whether to write the tree with time information.
             subtrees (list): A list of Newick strings for the children.
@@ -168,6 +173,7 @@ class Node:
 
     def _write_newick_iteratively(self, time_tree=False):
         """Writes the tree in Newick format iteratively.
+
         Args:
             tree (Node): The root node of the tree/subtree.
             time_tree (bool): Whether to write the tree with time information.
@@ -217,6 +223,7 @@ class Node:
 
     def copy(self):
         """Creates a copy of the node.
+
         Returns:
             Node: A new Node instance with the same properties as this node.
         """
@@ -235,6 +242,7 @@ class Node:
 
     def prune_subtree(self, to_keep):
         """Prunes the subtree to keep only nodes with IDs in the to_keep set.
+
         Args:
             to_keep (set): A set of IDs to keep in the subtree.
         Returns:
@@ -280,6 +288,7 @@ def _build_tree_to_keep(node, to_keep):
 
 def simplify_tree(root):
     """Simplifies the tree by removing nodes with only one child.
+    
     Args:
         root (Node): The root node of the tree.
     Returns:

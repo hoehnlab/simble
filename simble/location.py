@@ -32,6 +32,7 @@ class LocationName(Enum):
 
 class Location():
     """Represents a location in the simulation.
+
     Attributes:
         name (str): The name of the location.
         settings (LocationSettings): The settings for the location.
@@ -45,6 +46,7 @@ class Location():
             settings
     ):
         """Initializes a Location instance.
+        
         Args:
             name (str): The name of the location.
             settings (LocationSettings): The settings for the location.

@@ -37,6 +37,7 @@ logger = logging.getLogger(__package__)
 
 def get_population_data(location, time):
     """Calculates population data for a given location at a specific time.
+
     Args:
         location (Location): The location for which to calculate population data.
         time (int): The current time in the simulation.
@@ -129,6 +130,7 @@ def do_differentiation(location, time):
 
 def non_gc_population_control(current_generation):
     """Handles population control for non-GC locations.
+
     Args:
         current_generation (list): The current population in the non-GC location.
     Returns:
@@ -145,6 +147,7 @@ def non_gc_population_control(current_generation):
 
 def simulate(clone_id, TARGET_PAIR, gc_start_generation, root, time=0): # pylint: disable=invalid-name
     """Runs the simulation for a single clone.
+
     Args:
         clone_id (int): The ID of the clone.
         TARGET_PAIR (TargetAminoPair): The target amino acid pair for the simulation.
@@ -321,6 +324,7 @@ def simulate(clone_id, TARGET_PAIR, gc_start_generation, root, time=0): # pylint
 
 def run_simulation(i, result_dir):
     """Runs the simulation for a single iteration.
+
     Args:
         i (int): The iteration number of the simulation.
         result_dir (str): The directory where results will be saved.

@@ -33,6 +33,7 @@ class CellType(Enum):
 
 class Cell:
     """Represents a cell in the simulation.
+    
     Attributes:
         heavy_chain (HeavyChain): The heavy chain of the cell.
         light_chain (LightChain): The light chain of the cell.
