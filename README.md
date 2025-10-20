@@ -4,7 +4,11 @@ simble is a BCR evolution simulator. It starts with a naive heavy and light chai
 and models evolution and selection in the germinal center as well as migration out of 
 germinal center. simble also has customizable sampling.
 
-:construction: This readme is still under construction. :construction:
+:globe_with_meridians: [simble website](https://simble.readthedocs.io)
+
+# Documentation
+
+For full, up-to-date documentation, information, and tutorials, please visit [simble.readthedocs.io](https://simble.readthedocs.io).
 
 
 ## Installing simble
