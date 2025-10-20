@@ -2,7 +2,7 @@
 Citing
 ================
 
-To cite the simble package in publications, please use:
+To cite the SimBLE package in publications, please use:
 
 .. note::
 

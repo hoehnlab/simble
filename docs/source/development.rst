@@ -1,5 +1,5 @@
 .. _development:
-Developing in simble
+Developing in SimBLE
 =================
 
 Installing for development
@@ -21,9 +21,9 @@ pyproject.toml:
 
 Report a bug
 ----------------
-If you encounter any bugs or issues while using simble, please report them on the `GitHub Issues page <https://github.com/hoehnlab/simble/issues>`_.
+If you encounter any bugs or issues while using SimBLE, please report them on the `GitHub Issues page <https://github.com/hoehnlab/simble/issues>`_.
 
-Contributing to simble
+Contributing to SimBLE
 ---------------------------
 
 Please visit the `GitHub repo <https://github.com/hoehnlab/simble>`_ for more information on contributing.

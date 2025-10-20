@@ -3,7 +3,7 @@ Command line arguments
 -------------
 
 
-At any time, you can run simble with the ``-h`` or ``--help`` flag to see all 
+At any time, you can run SimBLE with the ``-h`` or ``--help`` flag to see all 
 available arguments (also below):
 
 .. code:: sh

@@ -4,10 +4,10 @@ Quick Start Guide
 
 🚧 This guide is still under construction. 🚧
 
-Installing simble
+Installing SimBLE
 -----------------
 
-The easiest way to install simble is with pip:
+The easiest way to install SimBLE is with pip:
 
 .. _install:
 .. code:: sh
@@ -38,4 +38,4 @@ Basic usage
 
 
 
-Thank you for using simble!
+Thank you for using SimBLE!

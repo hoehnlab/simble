@@ -22,6 +22,8 @@ along with simble.  If not, see <https://www.gnu.org/licenses/>."""
 
 import os
 import sys
+import re
+
 sys.path.insert(0, os.path.abspath('../../../simble/'))
 
 # -- Project information -----------------------------------------------------
@@ -30,7 +32,7 @@ sys.path.insert(0, os.path.abspath('../../../simble/'))
 project = 'simble'
 copyright = '2025, Jessie Fielding'
 author = 'Jessie Fielding'
-release = '0.0.2'
+release = re.sub('^v', '', os.popen('git describe').read().strip())
 
 # -- General configuration ---------------------------------------------------
 # https://www.sphinx-doc.org/en/master/usage/configuration.html#general-configuration
@@ -55,6 +57,7 @@ html_css_files = [
         'custom.css',
     ]
 html_sidebars = { '**': ['globaltoc.html', 'relations.html', 'sourcelink.html', 'searchbox.html'] }
+html_favicon = '_static/simble_favicon.png'
 
 
 def remove_initial_string(app, what, name, obj, options, lines):

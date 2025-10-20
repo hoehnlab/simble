@@ -8,7 +8,7 @@ Run a default simulation with a specified output folder:
 .. note:: The default simulation runs with selection, with no
    migration, sampling every 25 generations for 200 generations.
 
-At any time, you can run simble with the ``-h`` or ``--help`` flag to see all available 
+At any time, you can run SimBLE with the ``-h`` or ``--help`` flag to see all available 
 arguments (also see :ref:`all_arguments`):
 
 .. code:: sh
