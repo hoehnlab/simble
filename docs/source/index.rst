@@ -6,8 +6,8 @@
 .. raw:: html
 
    <div class="admonition-announcement attention">
-      <p class="admonition-title">Warning</p>
-      This site is still under construction. Be aware that some information may be missing or incorrect.
+      <p class="admonition-title">In review</p>
+      This software is currently under review and the API may change before its final release.
       <br><br>
    </div>
 
