@@ -6,6 +6,10 @@ germinal center. simble also has customizable sampling.
 
 :globe_with_meridians: [simble website](https://simble.readthedocs.io)
 
+To cite the SimBLE package in publications, please use:
+
+Fielding J, Wu S, Melton H, Du Plessis L, Fisk N, Hoehn K (2025). "TyCHE enables time-resolved lineage tracing of heterogeneously-evolving populations." *bioRxiv 2025.10.21.683591* doi:10.1101/2025.10.21.683591 https://doi.org/10.1101/2025.10.21.683591
+
 # Documentation
 
 For full, up-to-date documentation, information, and tutorials, please visit [simble.readthedocs.io](https://simble.readthedocs.io).
