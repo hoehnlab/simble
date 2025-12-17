@@ -23,6 +23,7 @@ import os
 
 from .location import as_enum
 from .settings import s
+from .target import DISTS_AND_DEFAULTS
 
 
 def get_parser():
@@ -195,7 +196,7 @@ def get_parser():
                        dest="cdr_dist",
                        help="cdr distribution",
                        default=None,
-                       choices=["constant", "exponential"],
+                       choices=DISTS_AND_DEFAULTS["cdr"].keys(),
                        type=str)
     model.add_argument("--cdr-var",
                        dest="cdr_var",
@@ -207,7 +208,7 @@ def get_parser():
                        dest="fwr_dist",
                        help="fwr distribution",
                        default=None,
-                       choices=["constant", "exponential"],
+                       choices=DISTS_AND_DEFAULTS["fwr"].keys(),
                        type=str)
     model.add_argument("--fwr-var",
                        dest="fwr_var",
@@ -238,6 +239,23 @@ def validate_samples(sample_info):
         raise ValueError("sample step must be greater than 0")
     if sample_info[2] > sample_info[1] - sample_info[0]:
         raise ValueError("sample step must be less than or equal to stop - start")
+
+def process_distribution_args(distribution, var, region):
+    """Processes distribution-related command line arguments and updates the 
+    global settings accordingly."""
+    if distribution is not None:
+        if distribution in DISTS_AND_DEFAULTS[region].keys():
+            _update_setting(f"{region.upper()}_DIST", distribution)
+            if var is not None:
+                _update_setting(f"{region.upper()}_VAR", var)
+            else:
+                _update_setting(f"{region.upper()}_VAR", DISTS_AND_DEFAULTS[region][distribution])
+        else:
+            raise ValueError(f"invalid {region.upper()} distribution: {distribution}")
+
+    elif var is not None:
+        _update_setting(f"{region.upper()}_VAR", var)
+
 
 def validate_and_process_args(args):
     """Validates and processes command line arguments and updates the simulation settings.
@@ -299,10 +317,14 @@ def validate_and_process_args(args):
     _update_setting("TARGET_MUTATIONS_LIGHT", args.target_mutations_light)
     _update_setting("DEV", args.dev)
     _update_setting("FASTA", args.fasta)
-    _update_setting("CDR_DIST", args.cdr_dist)
-    _update_setting("CDR_VAR", args.cdr_var)
-    _update_setting("FWR_DIST", args.fwr_dist)
-    _update_setting("FWR_VAR", args.fwr_var)
+
+    process_distribution_args(args.cdr_dist, args.cdr_var, "cdr")
+    process_distribution_args(args.fwr_dist, args.fwr_var, "fwr")
+    # _update_setting("CDR_DIST", args.cdr_dist)
+    # _update_setting("CDR_VAR", args.cdr_var)
+    # _update_setting("FWR_DIST", args.fwr_dist)
+    # _update_setting("FWR_VAR", args.fwr_var)
+
     _update_setting("MAX_POPULATION", args.antigen)
     _update_setting("MEMORY_SAVE", args.memory_save)
     _update_setting("KEEP_FULL_TREE", args.keep_full_tree)

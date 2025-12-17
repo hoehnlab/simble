@@ -21,6 +21,7 @@ import abc
 import logging
 
 import numpy as np
+import math
 
 from .helper import (get_mutability_of_kmer, get_substitution_probability,
                      translate_to_amino_acid)
@@ -266,8 +267,8 @@ class Chain:
                 if i in target.CDR_POSITIONS:
                     cdr_similarities += 1
                 affinity *= target.all_multipliers[i]
-            else:
-                affinity *= 1/target.all_multipliers[i]
+            # else:
+            #     affinity *= 1/target.all_multipliers[i]
 
         self.cdr_similarity = cdr_similarities/len(target.CDR_POSITIONS)
         self.fwr_similarity = (
@@ -275,9 +276,9 @@ class Chain:
             /(len(self.amino_acid_seq) - len(target.CDR_POSITIONS))
         )
         self.similarity = similarities/len(self.amino_acid_seq)
-        self.affinity = affinity
+        self.affinity = math.sqrt(affinity)
 
-        return affinity
+        return math.sqrt(affinity)
 
     def get_observed_mutations(self, germline_gapped, targets):
         """ Calculates the observed mutations in the chain compared to a germline sequence.

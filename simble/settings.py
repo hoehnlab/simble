@@ -122,8 +122,8 @@ class Settings(Encodable):
         # 0.16/325 (avg light chain length) = 0.0004923076923076923
         self.HEAVY_SHM_PER_SITE = 0.0008908272571108565
         self.LIGHT_SHM_PER_SITE = 0.0004923076923076923
-        self.TARGET_MUTATIONS_HEAVY = 5
-        self.TARGET_MUTATIONS_LIGHT = 2
+        self.TARGET_MUTATIONS_HEAVY = 10
+        self.TARGET_MUTATIONS_LIGHT = 5
         self._UNIFORM = False
         self.RESULTS_DIR = ""
         self.MULTIPLIER = 2
@@ -133,8 +133,8 @@ class Settings(Encodable):
         self.VERBOSE = False
         self.CDR_DIST = "exponential"
         self.CDR_VAR = 0.995
-        self.FWR_DIST = "exponential"
-        self.FWR_VAR = 0.85
+        self.FWR_DIST = "sqrt-exponential"
+        self.FWR_VAR = 0.98
         self.TIME_SWITCH = 50
         self.GENERATIONS_PER_DAY = 0.5
         self.MEMORY_SAVE = False
