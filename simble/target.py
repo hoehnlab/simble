@@ -146,7 +146,7 @@ class TargetAminoAcid:
             + list(range(56-1, (65-1)+1))
             + list(range(105-1, (105-1)+cdr3_length))
         )
-            
+
         self.amino_acid_seq = translate_to_amino_acid(self.gapped_nucleotide_seq)
         FWR_POSITIONS = [ # pylint: disable=invalid-name
             x

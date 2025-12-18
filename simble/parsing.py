@@ -320,10 +320,6 @@ def validate_and_process_args(args):
 
     process_distribution_args(args.cdr_dist, args.cdr_var, "cdr")
     process_distribution_args(args.fwr_dist, args.fwr_var, "fwr")
-    # _update_setting("CDR_DIST", args.cdr_dist)
-    # _update_setting("CDR_VAR", args.cdr_var)
-    # _update_setting("FWR_DIST", args.fwr_dist)
-    # _update_setting("FWR_VAR", args.fwr_var)
 
     _update_setting("MAX_POPULATION", args.antigen)
     _update_setting("MEMORY_SAVE", args.memory_save)
