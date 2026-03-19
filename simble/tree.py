@@ -255,16 +255,17 @@ class Node:
     def prune_up_tree(self):
         """Prunes the tree upwards, removing this node and its ancestors 
             if they have no children."""
-        if len(self.children) > 0:
-            # we don't want to prune this node or up if it still has children
-            return
-        if len(self.children) == 0:
-            # if there are no children, we will prune this node and move up
-            if self.parent is not None:
-                self.parent.children.remove(self)
-                parent = self.parent
-                self.parent = None
-                parent.prune_up_tree()
+
+        # if there are no children, we will prune this node and any ancestors
+        # that have no other children
+        node_to_remove = self
+        while len(node_to_remove.children) == 0:
+            if node_to_remove.parent is None:
+                break
+            node_to_remove.parent.children.remove(node_to_remove)
+            parent = node_to_remove.parent
+            node_to_remove.parent = None
+            node_to_remove = parent
 
 
 def _build_tree_to_keep(node, to_keep):

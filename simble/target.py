@@ -18,6 +18,7 @@
  """
 
 import numpy as np
+import math
 
 from .helper import translate_to_amino_acid
 from .settings import s
@@ -25,6 +26,54 @@ from .settings import s
 # IMGT conserved sites are 23, 41, 89, 104, 104+cdr3+1, but cdr3 is variable
 # python is 0-indexed so we need to subtract 1
 CONSERVED_SITES = [23-1, 41-1, 89-1, 104-1]
+
+# TODO: tweak these defaults
+DISTS_AND_DEFAULTS = {
+    "cdr": {
+            "constant": 1,
+            "constant-noise": 1,
+            "exponential": 0.995,
+            "sqrt-exponential": 0.995,
+        },
+    "fwr": {
+            "constant": 1,
+            "constant-noise": 1,
+            "exponential": 0.98,
+            "sqrt-exponential": 0.98,
+        }
+}
+
+def build_distribution(distribution_type, var, size):
+    """Builds a distribution based on the specified type and variance.
+
+    Args:
+        distribution_type (str): The type of distribution to build. Options are 
+            "exponential", "constant", "half-normal", or "temp-custom".
+        var (float): The variance parameter for the distribution.
+        size (int): The number of samples to generate.
+
+    Returns:
+        list: A list of samples from the specified distribution.
+    """
+    if distribution_type == "exponential":
+        exp_mean = -(s.MULTIPLIER-1)/np.log(1-var)
+        distribution = [1 + x for x in s.RNG.exponential(exp_mean, size)]
+    elif distribution_type == "sqrt-exponential":
+        exp_mean = -(s.MULTIPLIER-1)/np.log(1-var)
+        distribution = [
+            math.sqrt(1 + min(s.MULTIPLIER, x))
+            for x in s.RNG.exponential(exp_mean, size)
+            ]
+    elif distribution_type == "constant":
+        distribution = [var * s.MULTIPLIER for _ in range(size)]
+    elif distribution_type == "constant-noise":
+        distribution = [
+            var * s.MULTIPLIER + s.RNG.normal(0, 0.1)
+            for _ in range(size)
+            ]
+    else:
+        raise ValueError(f"Unknown distribution type: {distribution_type}")
+    return distribution
 
 
 class TargetAminoPair:
@@ -97,6 +146,7 @@ class TargetAminoAcid:
             + list(range(56-1, (65-1)+1))
             + list(range(105-1, (105-1)+cdr3_length))
         )
+
         self.amino_acid_seq = translate_to_amino_acid(self.gapped_nucleotide_seq)
         FWR_POSITIONS = [ # pylint: disable=invalid-name
             x
@@ -105,35 +155,11 @@ class TargetAminoAcid:
             ]
         self.mutation_locations = []
         self.all_multipliers = {}
-        if s.CDR_DIST == "exponential":
-            exp_mean = -(s.MULTIPLIER-1)/np.log(1-s.CDR_VAR)
-            exp_distribution = [
-                1 + x
-                for x in s.RNG.exponential(
-                    exp_mean,
-                    len(self.CDR_POSITIONS)
-                    )
-                ]
-        elif s.CDR_DIST == "constant":
-            exp_distribution = [s.CDR_VAR for _ in range(len(self.CDR_POSITIONS))]
-        else:
-            exp_distribution = [s.MULTIPLIER for _ in range(len(self.CDR_POSITIONS))]
-
-        if s.FWR_DIST == "exponential":
-            exp_mean = -(s.MULTIPLIER-1)/np.log(1-s.FWR_VAR)
-            fwr_distribution = [1 + x for x in s.RNG.exponential(exp_mean, len(FWR_POSITIONS))]
-        elif s.FWR_DIST == "constant":
-            fwr_distribution = [s.FWR_VAR for _ in range(len(FWR_POSITIONS))]
-        elif s.FWR_DIST == "constant-noise":
-            fwr_distribution = [
-                s.FWR_VAR + s.RNG.normal(0, 0.1)
-                for _ in range(len(FWR_POSITIONS))
-                ]
-        else:
-            fwr_distribution = [s.MULTIPLIER for _ in range(len(FWR_POSITIONS))]
+        cdr_distribution = build_distribution(s.CDR_DIST, s.CDR_VAR, len(self.CDR_POSITIONS))
+        fwr_distribution = build_distribution(s.FWR_DIST, s.FWR_VAR, len(FWR_POSITIONS))
 
         self.cdr_multipliers = {
-            self.CDR_POSITIONS[i]: exp_distribution[i]
+            self.CDR_POSITIONS[i]: cdr_distribution[i]
             for i in range(len(self.CDR_POSITIONS))
             }
         self.fwr_multipliers = {
@@ -187,6 +213,9 @@ class TargetAminoAcid:
         Args:
             n (int): The number of mutations to apply.
         """
+
+        if len(self.CDR_POSITIONS) < n:
+            raise ValueError("Not enough CDR positions for the number of mutations.")
         if self.amino_acid_seq == "" or n == 0:
             self.mutation_locations = []
             return

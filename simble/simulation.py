@@ -35,6 +35,8 @@ from .tree import Node, simplify_tree
 
 logger = logging.getLogger(__package__)
 
+MAX_CHILDREN = 100
+
 def get_population_data(location, time):
     """Calculates population data for a given location at a specific time.
 
@@ -49,13 +51,13 @@ def get_population_data(location, time):
     children_counter = Counter(location.number_of_children)
     children_dict = {
         f"number_of_cells_with_{i}_children": children_counter[i]
-        for i in range(1, 10)
+        for i in range(1, MAX_CHILDREN + 1)
         }
     pop_data = {
         "time": time,
         "location": location.name.value,
         "population": population,
-        "number_of_reproducing_cells": population - children_counter[0],
+        "number_of_reproducing_cells": sum(children_counter.values()) - children_counter[0],
         "average_affinity": np.mean(
             [
                 x.cell.affinity
@@ -229,10 +231,10 @@ def simulate(clone_id, TARGET_PAIR, gc_start_generation, root, time=0): # pylint
                 )
             current_node.antigen += 1
 
-        location.number_of_children = [min(x.antigen, 10) for x in current_generation]
+        location.number_of_children = [min(x.antigen, MAX_CHILDREN) for x in current_generation]
         for node in current_generation:
             node.cell.kill_cell()
-            children = [make_new_child(node) for _ in range(min(node.antigen, 10))]
+            children = [make_new_child(node) for _ in range(min(node.antigen, MAX_CHILDREN))]
             live_children = [x for x in children if x.cell.is_alive]
             new_generation.extend(live_children)
             if node.antigen == 0 and (s.MEMORY_SAVE or not s.KEEP_FULL_TREE):
