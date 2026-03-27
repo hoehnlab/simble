@@ -1,0 +1,236 @@
+<link rel="stylesheet"
+href="https://maxcdn.bootstrapcdn.com/font-awesome/4.4.0/css/font-awesome.min.css">
+
+<script language="javascript">
+function Animation(frames, container, interval){
+  this.container = container;
+  this.img = container.querySelector("img");
+  this.slider = container.querySelector(".anim-slider");
+  this.loopForm = container.querySelector(".anim-state");
+
+  this.interval = interval;
+  this.current_frame = 0;
+  this.direction = 0;
+  this.timer = null;
+
+  this.frames = frames.map(src => {
+    const img = new Image();
+    img.src = src;
+    return img;
+  });
+
+  this.slider.max = this.frames.length - 1;
+
+  this.attachEvents();
+  this.set_frame(0);
+}
+
+Animation.prototype.attachEvents = function() {
+  // Slider
+  this.slider.addEventListener("input", (e) => {
+    this.set_frame(parseInt(e.target.value));
+  });
+
+  // Buttons
+  this.container.querySelectorAll("[data-action]").forEach(btn => {
+    btn.addEventListener("click", () => {
+      const action = btn.dataset.action;
+      this.handleAction(action);
+    });
+  });
+};
+
+Animation.prototype.handleAction = function(action) {
+  switch(action) {
+    case "play": this.play_animation(); break;
+    case "pause": this.pause_animation(); break;
+    case "reverse": this.reverse_animation(); break;
+    case "next": this.next_frame(); break;
+    case "prev": this.previous_frame(); break;
+    case "first": this.first_frame(); break;
+    case "last": this.last_frame(); break;
+    case "faster": this.faster(); break;
+    case "slower": this.slower(); break;
+  }
+};
+
+Animation.prototype.get_loop_state = function(){
+  const checked = this.loopForm.querySelector("input:checked");
+  return checked ? checked.value : "loop";
+};
+
+Animation.prototype.set_frame = function(frame){
+  this.current_frame = frame;
+  this.img.src = this.frames[frame].src;
+  this.slider.value = frame;
+};
+
+Animation.prototype.next_frame = function(){
+  this.set_frame(Math.min(this.frames.length - 1, this.current_frame + 1));
+};
+
+Animation.prototype.previous_frame = function(){
+  this.set_frame(Math.max(0, this.current_frame - 1));
+};
+
+Animation.prototype.first_frame = function(){
+  this.set_frame(0);
+};
+
+Animation.prototype.last_frame = function(){
+  this.set_frame(this.frames.length - 1);
+};
+
+Animation.prototype.slower = function(){
+  this.interval /= 0.7;
+  this._restart_if_running();
+};
+
+Animation.prototype.faster = function(){
+  this.interval *= 0.7;
+  this._restart_if_running();
+};
+
+Animation.prototype._restart_if_running = function(){
+  if(this.direction > 0) this.play_animation();
+  else if(this.direction < 0) this.reverse_animation();
+};
+
+Animation.prototype.anim_step_forward = function(){
+  this.current_frame++;
+  if(this.current_frame < this.frames.length){
+    this.set_frame(this.current_frame);
+  } else {
+    const state = this.get_loop_state();
+    if(state === "loop"){
+      this.first_frame();
+    } else if(state === "reflect"){
+      this.last_frame();
+      this.reverse_animation();
+    } else {
+      this.pause_animation();
+      this.last_frame();
+    }
+  }
+};
+
+Animation.prototype.anim_step_reverse = function(){
+  this.current_frame--;
+  if(this.current_frame >= 0){
+    this.set_frame(this.current_frame);
+  } else {
+    const state = this.get_loop_state();
+    if(state === "loop"){
+      this.last_frame();
+    } else if(state === "reflect"){
+      this.first_frame();
+      this.play_animation();
+    } else {
+      this.pause_animation();
+      this.first_frame();
+    }
+  }
+};
+
+Animation.prototype.pause_animation = function(){
+  this.direction = 0;
+  if (this.timer){
+    clearInterval(this.timer);
+    this.timer = null;
+  }
+};
+
+Animation.prototype.play_animation = function(){
+  this.pause_animation();
+  this.direction = 1;
+  this.timer = setInterval(() => this.anim_step_forward(), this.interval);
+};
+
+Animation.prototype.reverse_animation = function(){
+  this.pause_animation();
+  this.direction = -1;
+  this.timer = setInterval(() => this.anim_step_reverse(), this.interval);
+};
+</script>
+
+
+<style>
+.animation {
+    display: inline-block;
+    text-align: center;
+}
+input[type=range].anim-slider {
+    width: 374px;
+    margin-left: auto;
+    margin-right: auto;
+}
+.anim-buttons {
+    margin: 8px 0px;
+}
+.anim-buttons button {
+    padding: 0;
+    width: 36px;
+}
+.anim-state label {
+    margin-right: 8px;
+}
+.anim-state input {
+    margin: 0;
+    vertical-align: middle;
+}
+</style>
+
+<head>
+  <title>INSERT_TITLE</title>
+</head>
+
+<template id="anim-controls-template">
+  <div class="anim-controls">
+    <input type="range" class="anim-slider" min="0" max="1" step="1" value="0">
+
+    <div class="anim-buttons">
+      <button data-action="slower"><i class="fa fa-minus"></i></button>
+      <button data-action="first"><i class="fa fa-fast-backward"></i></button>
+      <button data-action="prev"><i class="fa fa-step-backward"></i></button>
+      <button data-action="reverse"><i class="fa fa-play fa-flip-horizontal"></i></button>
+      <button data-action="pause"><i class="fa fa-pause"></i></button>
+      <button data-action="play"><i class="fa fa-play"></i></button>
+      <button data-action="next"><i class="fa fa-step-forward"></i></button>
+      <button data-action="last"><i class="fa fa-fast-forward"></i></button>
+      <button data-action="faster"><i class="fa fa-plus"></i></button>
+    </div>
+
+    <form class="anim-state">
+      <label><input type="radio" name="state" value="once">Once</label>
+      <label><input type="radio" name="state" value="loop" checked>Loop</label>
+      <label><input type="radio" name="state" value="reflect">Reflect</label>
+    </form>
+  </div>
+</template>
+
+
+INSERT_ANIMATIONS
+
+
+<script language="javascript">
+    const template = document.getElementById("anim-controls-template");
+    const MAX_FRAMES = INSERT_MAX_FRAMES;
+
+    document.querySelectorAll(".animation").forEach((el, j) => {
+        const curr_clone = el.getAttribute("clone");
+        const animHeading = document.createElement("h2");
+        animHeading.appendChild(document.createTextNode("Clone " + (curr_clone ?? ("Unknown " + j))));
+        el.appendChild(animHeading);
+        const clone = template.content.cloneNode(true);
+        el.appendChild(document.createElement("img"));
+        el.appendChild(clone);
+
+    var frames = new Array(MAX_FRAMES);  for (var i=0; i<(MAX_FRAMES); i++){
+        frames[i] = "./" + (curr_clone ?? (j+1)) + "/video/animation_frames/frame" + i +
+                    ".png";
+                }
+
+    new Animation(frames, el, 66);
+});
+</script>
+

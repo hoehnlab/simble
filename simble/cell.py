@@ -49,7 +49,10 @@ class Cell:
             created_at,
             is_alive=True,
             location=LocationName.GC,
-            cell_type=CellType.DEFAULT) -> None:
+            cell_type=CellType.DEFAULT,
+            start_point=None,
+            current_polygon=None,
+            last_polygon=None) -> None:
         if heavy_chain is None:
             heavy, light = get_random_start_pair()
             heavy_chain = HeavyChain(**heavy.chain._asdict())
@@ -72,6 +75,32 @@ class Cell:
         self.mutation_rate = s.LOCATIONS[0].mutation_rate if self.location == LocationName.GC else 0
         self.affinity = 1
 
+        self.current_position = start_point
+        self.current_polygon = current_polygon
+        self.last_polygon = last_polygon
+        if self.current_position is None and s.PLANE is not None:
+            self.current_position = s.PLANE.pick_random_root_starting_point()
+            self.current_polygon = s.PLANE.get_polygon_containing_point(self.current_position)
+        # if s.PLANE is not None and self.current_polygon:
+        #     self.current_polygon = s.PLANE.get_polygon_containing_point(self.current_position)
+
+    def do_random_walk(self, transition=False):
+        """Performs a random walk for the cell"""
+        if s.PLANE is None:
+            return
+        
+        self.current_position = s.PLANE.do_random_walk(self.current_position, transition=transition, last_GC=self.last_polygon)
+        if transition:
+            self.last_polygon = self.current_polygon
+            self.current_polygon = s.PLANE.get_polygon_containing_point(self.current_position)
+            # print(f"prev poly is {prev_poly} poly is {self.current_polygon}")
+        
+        # self.current_polygon = s.PLANE.get_polygon_containing_point(self.current_position)
+
+    def get_current_position(self):
+        """Returns the current position of the cell."""
+        return self.current_position
+
     def kill_cell(self):
         """Marks the cell as dead."""
         self.is_alive = False
@@ -89,6 +118,11 @@ class Cell:
         row["cell_id"]=str(id(self))
         row["location"]=self.location.value
         row["celltype"]=self.cell_type.value
+        if s.PLANE is not None:
+            row["spatial"]=str(self.current_position) if self.current_position is not None else None
+            row["spatial_x"]=self.current_position.x if self.current_position is not None else None
+            row["spatial_y"]=self.current_position.y if self.current_position is not None else None
+            row["polygon"]=str(self.current_polygon.name) if self.current_polygon is not None else "-1"
         return row
 
     def as_AIRR(self, generation): # pylint: disable=invalid-name
@@ -123,7 +157,10 @@ class Cell:
             self.created_at,
             self.is_alive,
             self.location,
-            self.cell_type
+            self.cell_type,
+            start_point=self.current_position,
+            current_polygon=self.current_polygon,
+            last_polygon=self.last_polygon
         )
         new.mutation_rate = self.mutation_rate
         new.affinity = self.affinity

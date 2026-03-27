@@ -18,6 +18,8 @@
  """
 
 import logging
+import json 
+
 from .location import LocationName
 
 logger = logging.getLogger(__package__)
@@ -117,6 +119,8 @@ class Settings(Encodable):
                 migration_rate=0.0,
                 sample_size=12)
                 ]
+        self.PLANE = None
+        self._PLANE_JSON = None
         # Based on an average heavy chain length of 370, the calculated value is:
         # 0.33/370 = 0.0008908272571108565
         # 0.16/325 (avg light chain length) = 0.0004923076923076923
@@ -147,6 +151,22 @@ class Settings(Encodable):
     def RNG(self):
         """Returns the random number generator instance."""
         return self._x_RNG
+    
+    @property
+    def PLANE(self):
+        """Returns the spatial plane used in the simulation."""
+        # if self._PLANE is None and self._PLANE_JSON is not None:
+        #     self._PLANE = SpatialPlane.from_dict(json.loads(self._PLANE_JSON))
+        return self._PLANE
+    
+    @PLANE.setter
+    def PLANE(self, value):
+        """Sets the spatial plane used in the simulation."""
+        self._PLANE = value
+        if value is not None:
+            self._PLANE_JSON = json.dumps(value.encode(), default=lambda o: o.encode())
+        else:
+            self._PLANE_JSON = None
 
     @property
     def SELECTION(self):
@@ -198,6 +218,11 @@ class Settings(Encodable):
         for key, value in dictionary.items():
             if key == "LOCATIONS":
                 self.LOCATIONS = [LocationSettings(**x) for x in value]
+                continue
+            if key == "PLANE":
+                # self.PLANE = SpatialPlane.from_dict(value)
+                if self._PLANE_JSON is None:
+                    self._PLANE_JSON = value
                 continue
             setattr(self, key, value)
 

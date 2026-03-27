@@ -67,9 +67,12 @@ class Node:
         self.clone_id=clone_id if clone_id else parent.clone_id if parent else -1
         self.sampled_time = None
         self.last_migration = None
+        self.reentry_time = None
         if self.parent is not None:
             self.last_migration = self.parent.last_migration
+            self.reentry_time = self.parent.reentry_time
         self.identical_children = 0
+
 
     @property
     def time_since_last_split(self):
@@ -161,6 +164,12 @@ class Node:
         else:
             branch_length = str(self.heavy_mutations+self.light_mutations)
         branch = f':{branch_length}'
+        if self.cell.current_position is not None:
+            labels += f",spatial={str(self.cell.current_position)}"
+            labels += f",spatial_x={self.cell.current_position.x}"
+            labels += f",spatial_y={self.cell.current_position.y}"
+            labels += f",polygon={str(self.cell.current_polygon.name) if self.cell.current_polygon is not None else "-1"}"
+
         labels = f"[&{labels}]"
         if len(self.children)==0:
             children = ""
@@ -237,6 +246,7 @@ class Node:
         )
         new.antigen = self.antigen
         new.last_migration = self.last_migration
+        new.reentry_time = self.reentry_time
         return new
 
 

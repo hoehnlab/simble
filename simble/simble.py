@@ -35,6 +35,7 @@ from .location import as_enum
 from .parsing import get_parser, validate_and_process_args
 from .settings import s
 from .simulation import run_simulation
+from .spatial_plane import SpatialPlane
 
 logger = logging.getLogger(__package__)
 
@@ -77,6 +78,7 @@ def do_simulation(i, seed, filename):
         settings = json.load(f, object_hook=as_enum)
     s.update_from_dict(settings)
     s._x_RNG = np.random.default_rng(seed) # pylint: disable=protected-access
+    s.PLANE = SpatialPlane.from_dict(json.loads(settings["_PLANE_JSON"])) if settings["_PLANE_JSON"] is not None else None
     set_logger()
     logger.info("Starting simulation %s", i)
     folder = s.RESULTS_DIR

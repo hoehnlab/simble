@@ -20,7 +20,6 @@
 
 from enum import Enum
 
-
 class LocationName(Enum):
     """Enum representing different locations in the simulation."""
     GC = "germinal_center"

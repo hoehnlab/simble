@@ -22,6 +22,7 @@ import json
 import os
 
 from .location import as_enum
+from .spatial_plane import create_spatial_plane_from_csv
 from .settings import s
 from .target import DISTS_AND_DEFAULTS
 
@@ -52,6 +53,8 @@ def get_parser():
         )
 
     sampling = parser.add_argument_group("sampling settings")
+
+    spatial = parser.add_argument_group("spatial settings")
 
     program.add_argument("-v", "--verbose",
                          dest="verbose",
@@ -216,6 +219,20 @@ def get_parser():
                        metavar="V",
                        default=None,
                        type=float)
+    
+    spatial.add_argument("--plane-file",
+                         dest="plane_file",
+                         help="path to csv file containing spatial plane information",
+                         metavar="FILE",
+                         default=None,
+                         type=str)
+    
+    spatial.add_argument("--spatial-rate",
+                         dest="spatial_rate",
+                         help="rate of spatial movement per generation (expected value of distance moved)",
+                         metavar="R",
+                         default=None,
+                         type=float)
 
     return parser
 
@@ -335,6 +352,18 @@ def validate_and_process_args(args):
     if s.LOCATIONS[1].sample_times is None:
         # if no sample times are specified for the "Other" location, use the same as the GC
         s.LOCATIONS[1].sample_times = s.LOCATIONS[0].sample_times
+
+    if args.plane_file is not None:
+        if args.spatial_rate is None:
+            raise ValueError("Spatial rate must be specified if plane file is provided")
+        s.SPATIAL_RATE = args.spatial_rate
+        try:
+            s.PLANE = create_spatial_plane_from_csv(args.plane_file, args.spatial_rate)
+        except Exception as e:
+            raise ValueError(f"error loading plane file: {e}") from e
+
+    if args.spatial_rate is not None and args.plane_file is None:
+        warnings.append("Spatial rate specified without plane file, ignoring spatial rate")
 
     return warnings
 

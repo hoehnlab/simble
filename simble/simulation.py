@@ -24,6 +24,11 @@ from collections import Counter
 import numpy as np
 import pandas as pd
 from tqdm import tqdm
+import matplotlib.pyplot as plt
+import os
+import warnings
+
+from matplotlib.animation import FuncAnimation
 
 from .cell import Cell, CellType
 from .dev_helper import get_data_points
@@ -32,6 +37,7 @@ from .location import Location, LocationName
 from .settings import s
 from .target import TargetAminoPair
 from .tree import Node, simplify_tree
+from .animation import SimbleEvent, make_animation_html
 
 logger = logging.getLogger(__package__)
 
@@ -79,6 +85,8 @@ def do_differentiation(location, time):
         list: A list of nodes that are migrating out of the germinal center.
     """
     current_generation = location.current_generation
+    if s.SELECTION:
+        current_generation = [x for x in current_generation if x.cell.affinity != 0]
     to_migrate = []
     migrate_size = min(
         int(
@@ -128,7 +136,48 @@ def do_differentiation(location, time):
 
     for node in to_migrate:
         node.last_migration = time
+
     return to_migrate
+
+
+def do_reentry(location, time):
+    """Handles the reentry of cells into the GC location.
+    Currently, this is only implemented for the other (OTHER) location.
+
+    Args:
+        location (Location): The germinal center location.
+        time (int): The current time in the simulation.
+    Returns:
+        list: A list of nodes that are migrating back into the germinal center.
+    """
+    if location.name != LocationName.OTHER:
+        return []
+    if s.PLANE is None:
+        return []
+    
+    # cells_to_reenter = []
+    reasonable_gens = 15
+    # TODO (jf): make this a setting and allow users to specify
+    reentry_size = int(s.RNG.poisson(0.02))
+    potential_reentry = []
+    for i in range(1, reasonable_gens, 1):
+        potential_reentry.extend([x for x in location.current_generation if x.last_migration == time - i])
+        if i >= 10 and len(potential_reentry) >= reentry_size:
+            break
+
+    # migration_times = [time - x.last_migration for x in potential_reentry]
+    if len(potential_reentry) == 0:
+        return []
+    
+    cells_to_reenter = s.RNG.choice(
+                potential_reentry,
+                size=min(reentry_size, len(potential_reentry)),
+                replace=False
+            )
+
+    # print(f"len(cells_to_reenter) = {len(cells_to_reenter)} and reentry_size = {reentry_size}")
+    [x.cell.differentiate(CellType.DEFAULT) for x in cells_to_reenter]
+    return cells_to_reenter
 
 def non_gc_population_control(current_generation):
     """Handles population control for non-GC locations.
@@ -170,6 +219,79 @@ def simulate(clone_id, TARGET_PAIR, gc_start_generation, root, time=0): # pylint
     airr = []
     sampled_ids = []
     sampled = []
+
+    event_handler = SimbleEvent(min_interval=200)
+
+    if s.PLANE:
+        # if not s.DEV:
+        #     plt.ioff()
+        if not s.DEV:
+            logging.getLogger('matplotlib').setLevel(level=logging.CRITICAL)
+            plt.switch_backend("Agg")
+        simulation_video_location = f"{s.RESULTS_DIR}/{clone_id}/video"
+        simulation_frame_location = f"{simulation_video_location}/animation_frames/"
+        if not os.path.exists(simulation_frame_location):
+            os.makedirs(simulation_frame_location)
+        with open(f"{simulation_video_location}/animation.html", "w", encoding="utf-8") as f:
+            f.write(make_animation_html(clone_id, s.END_TIME+1))
+        
+        fig, (ax, ax2) = plt.subplots(2, 1, height_ratios=[0.9, 0.1], num=f"Clone {clone_id}")
+        for patch in s.PLANE.get_patches():
+            ax.add_patch(patch)
+
+        curr_positions = [[nd.cell.get_current_position() for nd in loc.current_generation] for loc in locations]
+        x_gc = [pos.x for pos in curr_positions[0]]
+        y_gc = [pos.y for pos in curr_positions[0]]
+        x_other = [pos.x for pos in curr_positions[1]]
+        y_other = [pos.y for pos in curr_positions[1]]
+
+        data_positions_gc = ax.scatter(x_gc, y_gc, c="r", s=10, edgecolor="black")
+        data_positions_other = ax.scatter(x_other, y_other, c="y", s=10, edgecolor="black")
+        ax.set_aspect('equal', adjustable='box')
+
+        ax2.set_ylim(-1,1)
+        ax2.yaxis.set_visible(False)
+        ax2.spines[["left", "top", "right", "bottom"]].set_visible(False)
+        ax2.spines[["bottom"]].set_position(("axes", 0.5))
+        ax2.set_xlim(-0.5, s.END_TIME-0.5)
+        ax2.set_xticks(range(0, s.END_TIME, 10))
+        ax2.set_xlabel("Generations")
+        ax2.plot([0, s.END_TIME], [0, 0], "-k")
+        gen = ax2.plot([time], [0], "-o", color="black", markerfacecolor="white")[0]
+
+        title = ax.set_title(f'Generation {time}')
+        def update(i):
+            # if time % step != 0:
+            #     return data_positions, title, gen,
+            # curr_positions = [nd.cell.get_current_position() for loc in locations for nd in loc.current_generation]
+            # x = [pos.x for pos in curr_positions]
+            # y = [pos.y for pos in curr_positions]
+            curr_positions = [[nd.cell.get_current_position() for nd in loc.current_generation] for loc in locations]
+            x_gc = [pos.x for pos in curr_positions[0]]
+            y_gc = [pos.y for pos in curr_positions[0]]
+            x_other = [pos.x for pos in curr_positions[1]]
+            y_other = [pos.y for pos in curr_positions[1]]
+            data_positions_gc.set_offsets(np.stack([x_gc, y_gc]).T)
+            data_positions_other.set_offsets(np.stack([x_other, y_other]).T)
+
+            title.set_text(f'Generation {time}')
+            gen.set_data([time], [0])
+            fig.canvas.flush_events()
+            plt.savefig(f"{simulation_frame_location}/frame{time}.png")
+            return data_positions_gc, data_positions_other, title, gen,
+
+        ani = FuncAnimation(fig, update, frames=s.END_TIME, blit=False, event_source=event_handler)
+        # plt.ion()
+        # plt.legend()
+        if not s.DEV:
+            fig.canvas.draw_idle()
+        # plt.pause(1)
+        if s.DEV:
+            plt.pause(0.1)
+            plt.ion()
+            plt.show(block=False)
+            plt.ion()
+
     # TARGET_PAIR.mutate(s.TARGET_MUTATIONS_HEAVY, s.TARGET_MUTATIONS_LIGHT)
 
     def make_new_child(node):
@@ -177,7 +299,11 @@ def simulate(clone_id, TARGET_PAIR, gc_start_generation, root, time=0): # pylint
             node.cell.heavy_chain.copy(),
             node.cell.light_chain.copy(),
             location=node.cell.location,
-            created_at=time)
+            created_at=time,
+            start_point=node.cell.get_current_position(),
+            current_polygon=node.cell.current_polygon,
+            last_polygon=node.cell.last_polygon
+        )
         heavy_n, light_n = child_cell.mutate_cell()
         child_node = Node(
             child_cell,
@@ -197,39 +323,79 @@ def simulate(clone_id, TARGET_PAIR, gc_start_generation, root, time=0): # pylint
         current_generation = location.current_generation
         if len(current_generation) == 0:
             return []
+        
+        # if s.SELECTION:
+        #     non_functional = [x for x in current_generation if x.cell.affinity == 0]
+        # if len(non_functional) < len(current_generation):
+        #     current_generation = [x for x in current_generation if x not in non_functional]
 
         if location.name == LocationName.GC:
             to_migrate = do_differentiation(location, time)
         else:
             # potentially allow other locations to migrate in future versions of simble
-            to_migrate = []
+            to_migrate = do_reentry(location, time)
 
         current_generation = [x for x in current_generation if x not in to_migrate]
 
         for node in to_migrate:
             child_node = Node(node.cell.remake_self(), parent=node, generation=node.generation+1)
             node.add_child(child_node)
-            OTHER.immigrating_population.append(child_node)
+            if location.name == LocationName.GC:
+                OTHER.immigrating_population.append(child_node)
+            if location.name == LocationName.OTHER:
+                GC.immigrating_population.append(child_node)
+
+        emigration_location = None
+        if location.name == LocationName.GC:
+            emigration_location = OTHER
+        if location.name == LocationName.OTHER:
+            emigration_location = GC
+        [x.cell.do_random_walk(transition=True) for x in emigration_location.immigrating_population] if emigration_location is not None else None
 
         if location.name == LocationName.OTHER:
             new_generation = non_gc_population_control(current_generation)
+            [x.cell.do_random_walk(transition=False) for x in new_generation]
             return new_generation
 
         available_antigen = location.settings.max_population
 
-        if s.SELECTION and location.name == LocationName.GC:
+        if s.SELECTION and location.name == LocationName.GC and s.PLANE is None:
             affinities = [x.cell.affinity for x in current_generation]
             p = np.array(affinities) / np.sum(affinities)
 
         else:
             p = None
 
-        for _ in range(available_antigen):
-            current_node = s.RNG.choice(
-                current_generation,
-                p=p
-                )
-            current_node.antigen += 1
+        if s.PLANE is None:
+            for _ in range(available_antigen):
+                current_node = s.RNG.choice(
+                    current_generation,
+                    p=p
+                    )
+                current_node.antigen += 1
+        else:
+            # if time % 10 == 0:
+            #     temp_poly = [x.cell.current_polygon.name for x in current_generation if x.cell.current_polygon is not None]
+            #     print(Counter(temp_poly), flush=True)
+            for poly in s.PLANE.polygons:
+                poly_nodes = [x for x in current_generation if x.cell.current_polygon is not None and x.cell.current_polygon.name == poly.name]
+                if len(poly_nodes) == 0:
+                    # print(f"{poly.name} has no cells")
+                    continue
+                poly_available_antigen = s.PLANE.antigen_allocation.get(poly.name)
+                # print(f"{poly.name} has {len(poly_nodes)} current gen at time {time}, has {poly_available_antigen}", flush=True)
+                poly_affinities = [x.cell.affinity for x in poly_nodes]
+                p_poly = np.array(poly_affinities)/np.sum(poly_affinities)
+                if np.any(np.isnan(p_poly)):
+                    logger.warning(f"probabilities include nan values: {p_poly}")
+                    p_poly = None
+                for _ in range(int(poly_available_antigen)):
+                    current_node = s.RNG.choice(
+                        poly_nodes,
+                        p=p_poly
+                        )
+                    current_node.antigen += 1
+
 
         location.number_of_children = [min(x.antigen, MAX_CHILDREN) for x in current_generation]
         for node in current_generation:
@@ -240,7 +406,7 @@ def simulate(clone_id, TARGET_PAIR, gc_start_generation, root, time=0): # pylint
             if node.antigen == 0 and (s.MEMORY_SAVE or not s.KEEP_FULL_TREE):
                 node.prune_up_tree()
 
-
+        [x.cell.do_random_walk(transition=False) for x in new_generation]
         return new_generation
 
     progress_bar = tqdm(
@@ -306,6 +472,7 @@ def simulate(clone_id, TARGET_PAIR, gc_start_generation, root, time=0): # pylint
 
         time += 1
         if time<s.END_TIME:
+            event_handler.update_callbacks()
             progress_bar.update()
 
 
@@ -320,6 +487,7 @@ def simulate(clone_id, TARGET_PAIR, gc_start_generation, root, time=0): # pylint
     progress_bar.bar_format = "{desc}: |{bar}| {n}/{total} in {elapsed}"
     progress_bar.refresh()
     progress_bar.close()
+    event_handler.update_callbacks()
 
     return sampled, pop_data, df
 
