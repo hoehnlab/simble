@@ -52,11 +52,11 @@ def get_template(path):
 def _make_animations_html(clone_ids, max_frames, title):
     anims = [f'<div class="animation" clone="{clone_id}"></div>' for clone_id in clone_ids]
     anim_all = "\n".join(anims)
-    with open(get_template("html_template"), "r", encoding="utf-8") as f:
+    with open(get_template("html_template.html"), "r", encoding="utf-8") as f:
         html = f.read()
     new_html = html.replace("INSERT_TITLE", title)
     new_html = new_html.replace("INSERT_ANIMATIONS", anim_all)
-    new_html = new_html.replace("INSERT_MAX_FRAMES", max_frames)
+    new_html = new_html.replace("INSERT_MAX_FRAMES", str(max_frames))
     return new_html
     
 def make_all_animations_html(clone_ids, max_frames):
