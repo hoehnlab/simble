@@ -171,6 +171,12 @@ def get_parser():
                        metavar="R",
                        default=None,
                        type=float)
+    model.add_argument("--reentry-rate",
+                       dest="reentry_rate",
+                       help="rate of reentry to different GC per generation",
+                       metavar="R",
+                       default=None,
+                       type=float)
     model.add_argument("--heavy-shm",
                        dest="heavy_shm_per_site",
                        help="rate of SHM in heavy chain per site per generation",
@@ -322,6 +328,8 @@ def validate_and_process_args(args):
 
     if args.migration_rate:
         s.LOCATIONS[0].migration_rate = args.migration_rate
+
+    _update_setting("REENTRY_RATE", args.reentry_rate)
 
     if args.memory_save and args.keep_full_tree:
         warnings.append("Memory save and full tree options are incompatible. Using memory save.")

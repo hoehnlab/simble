@@ -157,8 +157,7 @@ def do_reentry(location, time):
     
     # cells_to_reenter = []
     reasonable_gens = 15
-    # TODO (jf): make this a setting and allow users to specify
-    reentry_size = int(s.RNG.poisson(0.02))
+    reentry_size = int(s.RNG.poisson(s.REENTRY_RATE))
     potential_reentry = []
     for i in range(1, reasonable_gens, 1):
         potential_reentry.extend([x for x in location.current_generation if x.last_migration == time - i])
