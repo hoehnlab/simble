@@ -32,6 +32,13 @@ logger = logging.getLogger(__package__)
 
 _ROOT = os.path.abspath(os.path.dirname(__file__))
 def get_data(path):
+    """Returns the absolute path to a data file in the simble package.
+
+    Args:
+        path (str): The relative path to the data file.
+    Returns:
+        str: The absolute path to the data file.
+    """
     return os.path.join(_ROOT, 'data', path)
 
 def get_naive_table():
@@ -47,10 +54,41 @@ def get_naive_table():
     else:
         naive = pd.read_csv(get_data("naive_pairs_filtered.csv"), header=0)
     return naive
+AIRR_REQUIRED_FIELDS = [
+    'sequence_id', 'sequence', 'rev_comp', 'productive', 'v_call', 'd_call',
+    'j_call', 'sequence_alignment', 'germline_alignment', 'junction', 'junction_aa',
+    'v_cigar', 'd_cigar', 'j_cigar', 'np1_length', 'v_germline_start',
+    'v_germline_end', 'd_germline_start', 'd_germline_end', 'j_germline_start',
+    'j_germline_end', 'locus'
+    ]
 
-AIRR_FIELDS_TO_KEEP = [x for x in AIRR_REQUIRED_FIELDS if x not in AIRR_FIELDS_TO_GENERATE]
+ALIGNMENT_FIELDS = ["v_germline_length", "d_germline_length", "j_germline_length",
+                    "np2_length"]
+
+AIRR_FIELDS_TO_GENERATE = [
+    'sequence_id', 'sequence', 'sequence_alignment', 'germline_alignment',
+    'location', 'sample_time', 'junction', 'junction_aa', 'junction_length'
+    ]
+
+AIRR_FIELDS_TO_KEEP = [x for x in AIRR_REQUIRED_FIELDS + ALIGNMENT_FIELDS if x not in AIRR_FIELDS_TO_GENERATE]
+
+ALL_TREE_NAMES = [
+    "full_tree",
+    "pruned_tree", "pruned_time_tree",
+    "simplified_tree", "simplified_time_tree"
+    ]
+
+TREE_NAMES = ["pruned_tree", "pruned_time_tree", "simplified_tree", "simplified_time_tree"]
+MEMORY_SAVE_TREE_NAMES = ["simplified_tree", "simplified_time_tree"]
 
 def read_sf5_table(filename):
+    """Reads a CSV file containing the SF5 mutability table.
+
+    Args:
+        filename (str): The path to the CSV file.
+    Returns:
+        pd.DataFrame: A DataFrame containing the mutability data.
+    """
     data = pd.read_csv(filename, header=0)
     data.fillna(0, inplace=True)
     return data
@@ -64,6 +102,11 @@ NAIVE_ROWS = len(NAIVE.index)
 HEAVY_SUBSTITUTION_TABLE = read_sf5_table(get_data("hh_sf5_substitution.csv"))
 LIGHT_SUBSTITUTION_TABLE = read_sf5_table(get_data("hkl_sf5_substitution.csv"))
 
+StartChain = namedtuple(
+    "StartChain", 
+    ["nucleotide_seq", "gapped_seq", "cdr3_aa_length", "junction"]
+    )
+StartConstants = namedtuple("StartConstants", ["chain", "constants"])
 
 def update_helper_tables():
     global NAIVE 
@@ -72,6 +115,13 @@ def update_helper_tables():
     NAIVE_ROWS = len(NAIVE.index)
 
 def translate_to_amino_acid(nucleotide_seq):
+    """ Translates a nucleotide sequence into an amino acid sequence.
+
+    Args:
+        nucleotide_seq (str): The nucleotide sequence to translate.
+    Returns:
+        str: The translated amino acid sequence.
+    """
     amino_acid_seq = ""
     for i in range(0, len(nucleotide_seq), 3):
         if i > len(nucleotide_seq) - 3:
@@ -83,6 +133,13 @@ def translate_to_amino_acid(nucleotide_seq):
 
 
 def codon_to_amino_acid(codon):
+    """Converts a codon (3-nucleotide sequence) to its corresponding amino acid.
+
+    Args:
+        codon (str): A 3-nucleotide sequence representing a codon.
+    Returns:
+        str: The corresponding amino acid represented by the codon.
+    """
     table = {
         'ATA':'I', 'ATC':'I', 'ATT':'I', 'ATG':'M',
         'ACA':'T', 'ACC':'T', 'ACG':'T', 'ACT':'T',
@@ -106,16 +163,37 @@ def codon_to_amino_acid(codon):
         return 'X'
     return table[codon]
 
+
 def get_substitution_probability(kmer, heavy=True):
+    """Gets the substitution probabilities for a given kmer.
+
+    Args:
+        kmer (str): The 5-mer sequence for which to get substitution probabilities.
+        heavy (bool): Whether to use the heavy chain substitution table.
+    Returns:
+        list: A list of probabilities for each nucleotide substitution (A, C, G, T).
+    """
+    if s.UNIFORM:
+        return [0.25, 0.25, 0.25, 0.25]
     table = HEAVY_SUBSTITUTION_TABLE if heavy else LIGHT_SUBSTITUTION_TABLE
     row = table.loc[(table["Fivemer"]==kmer)]
     if row.empty:
-        logger.error(f"{kmer} not found in substitution table")
+        logger.error("%s not found in substitution table", kmer)
         exit(1)
     probabilities = [row['A'].values[0], row['C'].values[0], row['G'].values[0], row['T'].values[0]]
     return probabilities
 
 def get_mutability_of_kmer(kmer, heavy=True):
+    """Gets the mutability of a given kmer.
+
+    Args:
+        kmer (str): The 5-mer sequence for which to get mutability.
+        heavy (bool): Whether to use the heavy chain mutability table.
+    Returns:
+        float: The mutability value for the kmer.
+    """
+    if s.UNIFORM:
+        return 1
     table = HEAVY_MUTABILITY_TABLE if heavy else LIGHT_MUTABILITY_TABLE
     mutability =  table.loc[table["Fivemer"]==kmer, "Mutability"].values[0]
     if math.isnan(mutability):
@@ -124,11 +202,42 @@ def get_mutability_of_kmer(kmer, heavy=True):
 
     return mutability
 
+
 def remove_gaps(aligned):
+    """Removes gaps from an aligned sequence.
+
+    Args:
+        aligned (str): The aligned sequence with gaps.
+    Returns:
+        str: The aligned sequence with gaps removed.
+    """
     return aligned.replace(".", "")
 
 
 def get_start_pair(i=None):
+    """Generates a random start pair of heavy and light chains.
+
+    Returns:
+        StartPair: A named tuple containing the heavy and light chains.
+    """
+    StartPair = namedtuple("RawStartPair", ["heavy", "light"])
+    if s.UNIFORM:
+        sequence = "".join(
+            s.RNG.choice(
+                a=["A", "C", "G", "T"],
+                size=s.SEQUENCE_LENGTH
+                )
+            )
+        start_input = StartChain(
+            sequence,
+            sequence,
+            0,
+            ""
+        )
+        empty = StartConstants(StartChain("", "", 0, ""), {})
+        start_info = StartConstants(start_input, {"germline_alignment": sequence})
+        return StartPair(start_info, empty)
+
     if i and not s.NAIVE_RANDOM:
         row = NAIVE.iloc[i % NAIVE_ROWS]
     else:
@@ -141,25 +250,42 @@ def get_start_pair(i=None):
         logger.warning("aligned sequence length is less than 312")
     return StartPair(heavy, light, user_constants)
 
-def _format_start_chain(row, type):
-    StartInput = namedtuple("StartInput", ["chain", "aligned", "cdr3_aa_length", "junction"])
-    StartInfo = namedtuple("StartInfo", ["input", "constants"])
-    get_cdr3_length = lambda x: int(len(x)/3)
-    input = StartInput(
-        remove_gaps(row[f'{type}_aligned'].values[0]), 
-        row[f'{type}_aligned'].values[0], 
-        get_cdr3_length(row[f'{type}_cdr3'].values[0]),
-        row[f'{type}_junction'].values[0]
+
+def _format_start_chain(row, chain_type):
+    """Formats a random start chain from a row of the naive pairs DataFrame.
+
+    Args:
+        row (pd.Series): A row from the naive pairs DataFrame.
+        chain_type (str): The type of chain ('heavy' or 'light').
+    Returns:
+        StartInfo: A named tuple containing the input and constants for the chain.
+    """
+    get_cdr3_length = lambda x: int(len(x)/3) #pylint: disable=unnecessary-lambda-assignment
+    start_input = StartChain(
+        remove_gaps(row[f'{chain_type}_aligned'].values[0]),
+        row[f'{chain_type}_aligned'].values[0],
+        get_cdr3_length(row[f'{chain_type}_cdr3'].values[0]),
+        row[f'{chain_type}_junction'].values[0]
         )
     constants = {
-        x:row[f'{type}_{x}'].values[0] for x in AIRR_FIELDS_TO_KEEP
+        x:row[f'{chain_type}_{x}'].values[0] for x in AIRR_FIELDS_TO_KEEP
     }
-    constants["germline_alignment"] = input.aligned
-    return StartInfo(input, constants)
-
+    constants["germline_alignment"] = start_input.gapped_seq
+    constants["cdr3_aa_length"] = start_input.cdr3_aa_length
+    return StartConstants(start_input, constants)
 
 
 def make_plot(data, times, results_file, ylabel, title, log=False):
+    """Creates a plot of the given data and saves it to a file.
+
+    Args:
+        data (np.ndarray): The data to plot.
+        times (np.ndarray): The time points corresponding to the data.
+        results_file (str): The file path to save the plot.
+        ylabel (str): The label for the y-axis.
+        title (str): The title of the plot.
+        log (bool): Whether to use a logarithmic scale for the y-axis.
+    """
     fig = plt.figure(title)
     ax = fig.gca()
     ax.plot(times, data)
@@ -172,6 +298,14 @@ def make_plot(data, times, results_file, ylabel, title, log=False):
     plt.close(fig)
 
 def make_bar_plot(data, results_file, xlabel, title):
+    """Creates a bar plot of the given data and saves it to a file.
+
+    Args:
+        data (np.ndarray): The data to plot.
+        results_file (str): The file path to save the plot.
+        xlabel (str): The label for the x-axis.
+        title (str): The title of the plot.
+    """
     fig = plt.figure(title)
     ax = fig.gca()
     ax.hist(data, bins = 30)
@@ -181,26 +315,59 @@ def make_bar_plot(data, results_file, xlabel, title):
     fig.savefig(results_file)
 
 def snake_case_to_normal(name):
+    """Converts a snake_case string to a normal string with spaces.
+
+    Args:
+        name (str): The snake_case string to convert.
+    Returns:
+        str: The converted string with spaces instead of underscores.
+    """
     return " ".join([x for x in name.split("_")])
 
-def axis_label(name):
+def _axis_label(name):
+    """Converts a snake_case string to a more readable axis label.
+
+    Args:
+        name (str): The snake_case string to convert.
+    Returns:
+        str: The converted string with spaces instead of underscores and capitalized.
+    """
     return [x for x in name.split("_")][-1]
 
 def make_all_plots(df, result_dir, simulation=False):
+    """Creates plots for all columns in the DataFrame and saves them to files.
+    
+    Args:
+        df (pd.DataFrame): The DataFrame containing the data to plot.
+        result_dir (str): The directory to save the plots.
+        simulation (bool): Whether the plots are for a simulation (affects title).
+    """
     title_suffix = "(across all clones in simulation)" if simulation else ""
     times = df["time"].to_numpy()
     columns = df.columns
     for column in columns:
         if column == "time":
             continue
-        elif "affinity" in column:
-            make_plot(df[column].to_numpy(), times, result_dir + f"/{column}.png", "Average affinity", f"Average {snake_case_to_normal(column)} {title_suffix}", log=True)
+        if "affinity" in column:
+            make_plot(
+                df[column].to_numpy(),
+                times,
+                result_dir + f"/{column}.png", "Average affinity",
+                f"Average {snake_case_to_normal(column)} {title_suffix}",
+                log=True
+                )
         elif "population" in column:
-            make_plot(df[column].to_numpy(), times, result_dir + f"/{column}.png", "Fraction of population", f"{snake_case_to_normal(column).capitalize()} {title_suffix}")
+            make_plot(
+                df[column].to_numpy(),
+                times,
+                result_dir + f"/{column}.png",
+                "Fraction of population",
+                f"{snake_case_to_normal(column).capitalize()} {title_suffix}"
+                )
         else:
             make_plot(
-                df[column].to_numpy(), 
-                times, 
-                result_dir + f"/{column}.png", 
-                f"Average {axis_label(column)}", 
+                df[column].to_numpy(),
+                times,
+                result_dir + f"/{column}.png",
+                f"Average {_axis_label(column)}",
                 f"Average {snake_case_to_normal(column)} {title_suffix}")

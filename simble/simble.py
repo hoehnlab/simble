@@ -27,8 +27,10 @@ from multiprocessing import Pool
 
 import numpy as np
 import pandas as pd
+from tqdm import tqdm
 
-from .helper import make_all_plots, update_helper_tables
+from .helper import (ALL_TREE_NAMES, MEMORY_SAVE_TREE_NAMES, TREE_NAMES,
+                     make_all_plots, update_helper_tables)
 from .location import as_enum
 from .parsing import get_parser, validate_and_process_args
 from .settings import s
@@ -36,7 +38,21 @@ from .simulation import run_simulation
 
 logger = logging.getLogger(__package__)
 
+class TqdmLoggingHandler(logging.Handler):
+    """Custom logging handler to write logs to tqdm output."""
+    def __init__(self, level=logging.NOTSET):
+        super().__init__(level)
+
+    def emit(self, record):
+        try:
+            msg = self.format(record)
+            tqdm.write(f"\033[K{msg}")
+            self.flush()
+        except Exception:
+            self.handleError(record)
+
 def set_logger():
+    """Sets up the logger for the simulation."""
     if s.DEV:
         logger.setLevel(logging.DEBUG)
         log_format = '%(asctime)s %(process)d \t%(levelname)s: %(message)s'
@@ -47,14 +63,20 @@ def set_logger():
         logger.setLevel(logging.WARNING)
         log_format = '%(levelname)s: %(message)s'
 
-    logging.basicConfig(format=log_format, datefmt='%H:%M:%S')
+    handler = TqdmLoggingHandler()
+    formatter=logging.Formatter(log_format, datefmt='%H:%M:%S')
+    handler.setFormatter(formatter)
+    logger.addHandler(handler)
+    logger.propagate = False
+
 
 
 def do_simulation(clone_id, seed, filename):
-    with open(filename, "r") as f:
+    """Runs a single simulation with the given seed and settings."""
+    with open(filename, "r", encoding="utf-8") as f:
         settings = json.load(f, object_hook=as_enum)
     s.update_from_dict(settings)
-    s._RNG = np.random.default_rng(seed)
+    s._x_RNG = np.random.default_rng(seed) # pylint: disable=protected-access
     set_logger()
     logger.info(f"Starting simulation for clone {clone_id}")
     folder = s.RESULTS_DIR
@@ -65,22 +87,25 @@ def do_simulation(clone_id, seed, filename):
     data = run_simulation(clone_id, curr_results)
     end = time.time()
 
-    logger.debug(f"Time taken: {end-start}")
+    logger.debug("Time taken: %s", end - start)
     return data
 
 
 def process_results(results):
+    """Processes the results of the simulations and saves them to files."""
     all_results = {}
     for key in results[0].keys():
         all_results[key] = [x[key] for x in results]
 
     if s.FASTA:
         fasta_string = "\n".join(all_results["fasta"])
-        with open(s.RESULTS_DIR + "/all_samples.fasta", "w") as f:
+        with open(s.RESULTS_DIR + "/all_samples.fasta", "w", encoding="utf-8") as f:
             f.write(fasta_string)
     airr = pd.concat(all_results["airr"])
-    airr["d_germline_start"] = airr["d_germline_start"].astype(pd.Int64Dtype())
-    airr["d_germline_end"] = airr["d_germline_end"].astype(pd.Int64Dtype())
+    if "d_germline_start" in airr.columns:
+        airr["d_germline_start"] = airr["d_germline_start"].astype(pd.Int64Dtype())
+    if "d_germline_end" in airr.columns:
+        airr["d_germline_end"] = airr["d_germline_end"].astype(pd.Int64Dtype())
     airr.to_csv(s.RESULTS_DIR + "/all_samples_airr.tsv", sep="\t", index=False)
     pop_data = pd.concat(all_results["pop_data"])
     pop_data.to_csv(s.RESULTS_DIR + "/population_data.csv", index=False)
@@ -90,20 +115,29 @@ def process_results(results):
         grouped = df.groupby(['time']).mean().reset_index()
         make_all_plots(grouped, s.RESULTS_DIR, True)
 
-    nexus = "#NEXUS\n" + "BEGIN TREES;\n"
+    if s.MEMORY_SAVE:
+        tree_names = MEMORY_SAVE_TREE_NAMES
+    elif s.KEEP_FULL_TREE:
+        tree_names = ALL_TREE_NAMES
+    else:
+        tree_names = TREE_NAMES
+    nexus = ["#NEXUS\n" + "BEGIN TREES;\n" for _ in tree_names]
+
     for clone in results:
-        nexus += f'\tTree true_tree_{clone["clone_id"]} = {clone["true_tree"]}\n'
-        nexus += f'\tTree pruned_tree_{clone["clone_id"]} = {clone["pruned_tree"]}\n'
-        nexus += f'\tTree pruned_time_tree_{clone["clone_id"]} = {clone["pruned_time_tree"]}\n'
-    nexus += "END;\n"
-    with open(s.RESULTS_DIR + "/all_trees.nex", "w") as f:
-        f.write(nexus)
-    
+        for i, tree_name in enumerate(tree_names):
+            nexus[i] += f'\tTree {clone["clone_id"]} = {clone[tree_name]}\n'
+
+    for i, tree_name in enumerate(tree_names):
+        nexus[i] += "END;\n"
+        with open(s.RESULTS_DIR + f"/all_{tree_name}s.nex", "w", encoding="utf-8") as f:
+            f.write(nexus[i])
+
     targets = pd.DataFrame(all_results["targets"])
     targets.to_csv(s.RESULTS_DIR + "/all_targets.csv", index=False)
 
 
 def main():
+    """ Main function to run the simulation. """
     parser = get_parser()
 
     args = parser.parse_args()
@@ -114,12 +148,10 @@ def main():
     update_helper_tables()
 
     set_logger()
-
     for warning in warnings:
         logger.warning(warning)
 
     if args.seed is not None:
-        # TODO: fix input for seeds
         seed = args.seed
         ss = np.random.SeedSequence(seed)
     else:
@@ -133,11 +165,13 @@ def main():
         json.dump(s, tmpf, default=lambda o: o.encode(), indent=4)
         tmpf.flush()
         start = time.time()
-        logger.info(f"Starting simulation")
+        logger.info("Starting simulation")
         if args.processes > 1:
             with Pool(processes=args.processes) as pool:
-                result = pool.starmap(partial(do_simulation, filename=tmpf.name), zip(range(args.n), seeds))
-
+                result = pool.starmap(
+                    partial(do_simulation, filename=tmpf.name),
+                    zip(range(args.n), seeds)
+                    )
         else:
             result = []
             for i in range(args.n):
@@ -146,4 +180,4 @@ def main():
     process_results(result)
 
     end = time.time()
-    logger.debug(f"Program finished! Total time taken: {end-start}")
+    logger.debug("Program finished! Total time taken: %s", end-start)

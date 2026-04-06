@@ -29,17 +29,20 @@ from simble.simble import do_simulation
 
 
 class TestSeeds(unittest.TestCase):
-    def assertDataframeEqual(self, a, b, msg):
+    """Test case for simble simulation with specific seeds."""
+    def assert_dataframe_equal(self, a, b, msg):
+        """Custom assertion to compare two DataFrames."""
         try:
             pd.testing.assert_frame_equal(a, b)
         except AssertionError as e:
             raise self.failureException(msg) from e
-        
+
     def setUp(self):
-        self.addTypeEqualityFunc(pd.DataFrame, self.assertDataframeEqual)
+        self.addTypeEqualityFunc(pd.DataFrame, self.assert_dataframe_equal)
 
 
     def test_main(self):
+        """Test the main simulation with a specific seed."""
         clean_settings = Settings()
         clean_settings.LOCATIONS[0].sample_times = list(range(0, 10, 5))
         clean_settings.LOCATIONS[1].sample_times = list(range(0, 10, 5))
@@ -49,7 +52,7 @@ class TestSeeds(unittest.TestCase):
             json.dump(clean_settings, tmpf, default=lambda o: o.encode(), indent=4)
             tmpf.flush()
             result1 = do_simulation(1, seed, tmpf.name)
-        
+
         clean_settings = Settings()
         clean_settings.LOCATIONS[0].sample_times = list(range(0, 10, 5))
         clean_settings.LOCATIONS[1].sample_times = list(range(0, 10, 5))
@@ -63,7 +66,8 @@ class TestSeeds(unittest.TestCase):
         self.assertEqual(result1["pop_data"], result2["pop_data"])
         self.assertEqual(result1["clone_id"], result2["clone_id"])
         self.assertEqual(result1["airr"].drop(columns=drop), result2["airr"].drop(columns=drop))
-        # cell_ids will not match so we'd need to write custom function to compare trees, but if these dataframes are exactly equal it should be good enough for now
+        # cell_ids will not match so we'd need to write custom function to compare trees,
+        # but if these dataframes are exactly equal it should be good enough for now
 
 if __name__ == '__main__':
     unittest.main()
