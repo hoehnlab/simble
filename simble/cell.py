@@ -55,16 +55,16 @@ class Cell:
         if heavy_chain is None:
             pair = get_start_pair(clone_id-1 if clone_id else None)
             heavy_chain = HeavyChain(
-                nucleotide_seq=pair.heavy.input.chain, 
-                gapped_seq=pair.heavy.input.aligned,
-                cdr3_aa_length=pair.heavy.input.cdr3_aa_length,
-                junction=pair.heavy.input.junction)
+                nucleotide_seq=pair.heavy.chain.nucleotide_seq, 
+                gapped_seq=pair.heavy.chain.gapped_seq,
+                cdr3_aa_length=pair.heavy.chain.cdr3_aa_length,
+                junction=pair.heavy.chain.junction)
             heavy_chain.airr_constants = pair.heavy.constants
             light_chain = LightChain(
-                nucleotide_seq=pair.light.input.chain, 
-                gapped_seq=pair.light.input.aligned,
-                cdr3_aa_length=pair.light.input.cdr3_aa_length,
-                junction=pair.light.input.junction)
+                nucleotide_seq=pair.light.chain.nucleotide_seq, 
+                gapped_seq=pair.light.chain.gapped_seq,
+                cdr3_aa_length=pair.light.chain.cdr3_aa_length,
+                junction=pair.light.chain.junction)
             light_chain.airr_constants = pair.light.constants
             self.user_constants = pair.user_constants
 
@@ -100,7 +100,7 @@ class Cell:
         row["sequence_id"]=f'{str(id(self))}_{row["sequence_id"]}'
         row["cell_id"]=str(id(self))
         row["location"]=self.location.value
-        row["celltype"]=self.type.value
+        row["celltype"]=self.cell_type.value
         row.update(self.user_constants)
         return row
 

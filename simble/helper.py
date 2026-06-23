@@ -241,12 +241,12 @@ def get_start_pair(i=None):
     if i and not s.NAIVE_RANDOM:
         row = NAIVE.iloc[i % NAIVE_ROWS]
     else:
-        row = NAIVE.sample(random_state=s._RNG)
+        row = NAIVE.sample(random_state=s.RNG)
     StartPair = namedtuple("RawStartPair", ["heavy", "light", "user_constants"])
     heavy = _format_start_chain(row, "heavy")
     light = _format_start_chain(row, "light")
     user_constants = {x: row[x] for x in s.USER_FIELDS_TO_KEEP}
-    if len(heavy.input.aligned) < 312 or len(light.input.aligned) < 312:
+    if len(heavy.chain.gapped_seq) < 312 or len(light.chain.gapped_seq) < 312:
         logger.warning("aligned sequence length is less than 312")
     return StartPair(heavy, light, user_constants)
 
