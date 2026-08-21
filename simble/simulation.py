@@ -323,20 +323,23 @@ def simulate(clone_id, TARGET_PAIR, gc_start_generation, root, time=0): # pylint
 
     return sampled, pop_data, df
 
-
-def run_simulation(i, result_dir):
+# CGJ
+def run_simulation(i, result_dir, founder_idx=None):
     """Runs the simulation for a single iteration.
 
     Args:
         i (int): The iteration number of the simulation.
         result_dir (str): The directory where results will be saved.
+        founder_idx (int, optional): If given, the row of the naive pool to use
+            as this clone's founder, instead of drawing one at random.
     Returns:
-        dict: A dictionary containing the results of the simulation, 
+        dict: A dictionary containing the results of the simulation,
             including AIRR data, FASTA sequences, trees, and population data.
     """
     time = 0
     clone_id = i+1
-    naive = Cell(None, None, created_at=time)
+    # CGJ 
+    naive = Cell(None, None, created_at=time, founder_idx=founder_idx)
     root = Node(naive, clone_id=clone_id)
     airr = []
     TARGET_PAIR = TargetAminoPair( # pylint: disable=invalid-name

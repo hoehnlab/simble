@@ -20,6 +20,8 @@
 import json
 import logging
 import os
+# CGJ 8/4/26
+import sys
 import tempfile
 import time
 from functools import partial
@@ -29,14 +31,17 @@ import numpy as np
 import pandas as pd
 from tqdm import tqdm
 
+# CGJ 
 from .helper import (ALL_TREE_NAMES, MEMORY_SAVE_TREE_NAMES, TREE_NAMES,
-                     make_all_plots)
+                     get_unique_founder_indices, make_all_plots)
 from .location import as_enum
 from .parsing import get_parser, validate_and_process_args
 from .settings import s
 from .simulation import run_simulation
 
 logger = logging.getLogger(__package__)
+# CGJ 8/4/26 
+RECURSION_LIMIT_MULTIPLIER = 1.5
 
 class TqdmLoggingHandler(logging.Handler):
     """Custom logging handler to write logs to tqdm output."""
@@ -70,12 +75,15 @@ def set_logger():
     logger.propagate = False
 
 
-
-def do_simulation(i, seed, filename):
+# CGJ
+def do_simulation(i, seed, founder_idx, filename):
     """Runs a single simulation with the given seed and settings."""
     with open(filename, "r", encoding="utf-8") as f:
         settings = json.load(f, object_hook=as_enum)
     s.update_from_dict(settings)
+    # CGJ 8/4/26
+    # Each multiprocessing worker needs the recursion limit to be raised
+    sys.setrecursionlimit(max(1000, int(s.END_TIME * RECURSION_LIMIT_MULTIPLIER)))
     s._x_RNG = np.random.default_rng(seed) # pylint: disable=protected-access
     set_logger()
     logger.info("Starting simulation %s", i)
@@ -84,7 +92,8 @@ def do_simulation(i, seed, filename):
     if s.DEV and not os.path.exists(curr_results):
         os.mkdir(curr_results)
     start = time.time()
-    data = run_simulation(i, curr_results)
+    # CGJ
+    data = run_simulation(i, curr_results, founder_idx)
     end = time.time()
 
     logger.debug("Time taken: %s", end - start)
@@ -155,6 +164,13 @@ def main():
     seeds = ss.spawn(args.n)
     print(f"Seed: {ss.entropy}")
 
+    # CGJ
+    if args.unique_founders and not s.UNIFORM:
+        founder_rng = np.random.default_rng(ss.spawn(1)[0])
+        founder_indices = get_unique_founder_indices(args.n, founder_rng)
+    else:
+        founder_indices = [None] * args.n
+
     with tempfile.NamedTemporaryFile(mode="w") as tmpf:
         json.dump(s, tmpf, default=lambda o: o.encode(), indent=4)
         tmpf.flush()
@@ -164,13 +180,15 @@ def main():
             with Pool(processes=args.processes) as pool:
                 result = pool.starmap(
                     partial(do_simulation, filename=tmpf.name),
-                    zip(range(args.n), seeds)
+                    # CGJ
+                    zip(range(args.n), seeds, founder_indices)
                     )
         else:
             result = []
             for i in range(args.n):
                 result.append(
-                    do_simulation(i, seeds[i], tmpf.name)
+                    # CGJ
+                    do_simulation(i, seeds[i], founder_indices[i], tmpf.name)
                     )
 
     process_results(result)
