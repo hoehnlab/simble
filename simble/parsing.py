@@ -21,6 +21,8 @@ import argparse
 import json
 import os
 
+# CGJ
+from .helper import NAIVE
 from .location import as_enum
 from .settings import s
 from .target import DISTS_AND_DEFAULTS
@@ -133,6 +135,15 @@ def get_parser():
                          help="specify sample size for the 'Other' location",
                          default=None,
                          type=int)
+    # CGJ
+    sampling.add_argument("--unique-founders",
+                         dest="unique_founders",
+                         help=(
+                             "sample each clone's founder (naive) sequence without "
+                             "replacement, so no two clones start from the same naive "
+                             "sequence (default: sampled independently, with replacement)"
+                             ),
+                         action="store_true")
 
     model.add_argument("--neutral",
                        dest="neutral",
@@ -331,6 +342,19 @@ def validate_and_process_args(args):
         s.LOCATIONS[0].sample_size = args.sample_size
     if args.sample_size_other:
         s.LOCATIONS[1].sample_size = args.sample_size_other
+
+    # CGJ 
+    if args.unique_founders:
+        if args.uniform:
+            warnings.append((
+                "Unique founders specified, but uniform mode does not draw founders "
+                "from the naive pool; ignoring."
+                ))
+        elif args.n > len(NAIVE):
+            raise ValueError((
+                f"cannot sample {args.n} unique founders without replacement from a "
+                f"pool of only {len(NAIVE)} naive sequences"
+                ))
 
     if s.LOCATIONS[1].sample_times is None:
         # if no sample times are specified for the "Other" location, use the same as the GC

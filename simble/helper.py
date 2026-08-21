@@ -192,10 +192,25 @@ def remove_gaps(aligned):
     """
     return aligned.replace(".", "")
 
+# CGJ
+def get_unique_founder_indices(n, rng):
+    """Draws n unique row indices into the NAIVE pool, sampled without replacement.
 
-def get_random_start_pair():
+    Args:
+        n (int): The number of indices to draw.
+        rng (np.random.Generator): The random number generator to use.
+    Returns:
+        np.ndarray: An array of n unique indices into NAIVE.
+    """
+    return rng.choice(len(NAIVE), size=n, replace=False)
+
+# CGJ
+def get_random_start_pair(founder_idx=None):
     """Generates a random start pair of heavy and light chains.
 
+    Args:
+        founder_idx (int, optional): If given, use this row of NAIVE as the
+            founder instead of drawing one at random. Ignored in uniform mode.
     Returns:
         StartPair: A named tuple containing the heavy and light chains.
     """
@@ -217,7 +232,8 @@ def get_random_start_pair():
         start_info = StartConstants(start_input, {"germline_alignment": sequence})
         return StartPair(start_info, empty)
 
-    row = NAIVE.sample(random_state=s.RNG)
+    # CGJ 
+    row = NAIVE.iloc[[founder_idx]] if founder_idx is not None else NAIVE.sample(random_state=s.RNG)
     heavy = _format_random_start_chain(row, "heavy")
     light = _format_random_start_chain(row, "light")
     if len(heavy.chain.gapped_seq) < 312 or len(light.chain.gapped_seq) < 312:

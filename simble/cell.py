@@ -49,9 +49,12 @@ class Cell:
             created_at,
             is_alive=True,
             location=LocationName.GC,
-            cell_type=CellType.DEFAULT) -> None:
+            # CGJ
+            cell_type=CellType.DEFAULT,
+            founder_idx=None) -> None:
         if heavy_chain is None:
-            heavy, light = get_random_start_pair()
+            # CGJ
+            heavy, light = get_random_start_pair(founder_idx)
             heavy_chain = HeavyChain(**heavy.chain._asdict())
             heavy_chain.airr_constants = heavy.constants
             light_chain = LightChain(**light.chain._asdict())
