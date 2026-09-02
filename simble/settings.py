@@ -140,6 +140,10 @@ class Settings(Encodable):
         self.NAIVE_FILE = None
         self.USER_FIELDS_TO_KEEP = []
         self.NAIVE_RANDOM = True
+        # CGJ
+        # a user-supplied target shared by every clone in the run; empty when the
+        # target is derived per-clone from that clone's own naive sequence
+        self.TARGET = {}
         self.MEMORY_SAVE = False
         self.KEEP_FULL_TREE = False
         self.QUIET = False

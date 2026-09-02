@@ -41,16 +41,90 @@ def get_data(path):
     """
     return os.path.join(_ROOT, 'data', path)
 
+# CGJ
+INPUT_COLUMN_NAMES = {
+    "heavy_sequence": "heavy",
+    "light_sequence": "light",
+    "heavy_sequence_alignment": "heavy_aligned",
+    "light_sequence_alignment": "light_aligned"
+}
+
+# CGJ
+def read_input_table(filename):
+    """Reads a table of paired heavy and light sequences.
+
+    Args:
+        filename (str): The path to the file. Tab separated if it ends in .tsv,
+            comma separated otherwise.
+    Returns:
+        pd.DataFrame: The table, using the column names of the input.
+    """
+    separator = "\t" if str(filename).endswith(".tsv") else ","
+    return pd.read_csv(filename, sep=separator, header=0)
+
+# CGJ
+def normalize_input_columns(table):
+    """Renames the columns of an input table to simble's internal names.
+
+    Args:
+        table (pd.DataFrame): A table of paired heavy and light sequences.
+    Returns:
+        pd.DataFrame: The same table, using simble's internal column names.
+    """
+    return table.rename(columns=INPUT_COLUMN_NAMES)
+
+# CGJ
+def get_target_signature(row):
+    """Gets what a naive pair has to match to be compatible with a target.
+
+    Args:
+        row (pd.Series): A row of a table using simble's internal column names.
+    Returns:
+        dict: The locus and the v, cdr3 and alignment lengths of both chains.
+    """
+    signature = {}
+    for chain in ["heavy", "light"]:
+        signature[f"{chain}_locus"] = row[f"{chain}_locus"]
+        signature[f"{chain}_v"] = int(row[f"{chain}_v_germline_length"])
+        signature[f"{chain}_cdr3"] = len(row[f"{chain}_cdr3"])
+        signature[f"{chain}_aligned"] = len(row[f"{chain}_aligned"])
+    return signature
+
+# CGJ
+def filter_naive_to_target(naive):
+    """Restricts the naive pool to the pairs that line up with the target.
+
+    Affinity is scored by comparing amino acids position by position, so a naive
+    pair can only be used with a given target if both chains are from the same
+    locus and agree on the length of the v region, the cdr3 and the whole
+    alignment. Uniform simulations do not draw from the naive pool, so they are
+    left alone.
+
+    Args:
+        naive (pd.DataFrame): The full naive pool.
+    Returns:
+        pd.DataFrame: The pairs compatible with the target.
+    """
+    if not s.TARGET or s.UNIFORM:
+        return naive
+    signature = s.TARGET["signature"]
+    compatible = pd.Series(True, index=naive.index)
+    for chain in ["heavy", "light"]:
+        if f"{chain}_v_germline_length" not in naive.columns:
+            raise ValueError((
+                f"{chain}_v_germline_length is missing from the naive input. It is "
+                "needed to match naive pairs to a target"
+                ))
+        compatible &= naive[f"{chain}_locus"] == signature[f"{chain}_locus"]
+        compatible &= naive[f"{chain}_v_germline_length"] == signature[f"{chain}_v"]
+        compatible &= naive[f"{chain}_cdr3"].str.len() == signature[f"{chain}_cdr3"]
+        compatible &= naive[f"{chain}_aligned"].str.len() == signature[f"{chain}_aligned"]
+    return naive[compatible].reset_index(drop=True)
+
 def get_naive_table():
     if s.NAIVE_FILE:
-        naive = pd.read_csv(s.NAIVE_FILE, header=0)
-        renamed_columns = {
-            "heavy_sequence": "heavy",
-            "light_sequence": "light",
-            "heavy_sequence_alignment": "heavy_aligned",
-            "light_sequence_alignment": "light_aligned"
-        }
-        naive.rename(columns=renamed_columns, inplace=True)
+        # CGJ
+        naive = normalize_input_columns(read_input_table(s.NAIVE_FILE))
     else:
         naive = pd.read_csv(get_data("naive_pairs_filtered.csv"), header=0)
     return naive
@@ -98,6 +172,9 @@ LIGHT_MUTABILITY_TABLE = read_sf5_table(get_data("hkl_sf5.csv"))
 
 NAIVE = get_naive_table()
 NAIVE_ROWS = len(NAIVE.index)
+# CGJ
+# how many pairs the pool held before it was restricted to the target
+NAIVE_TOTAL_ROWS = NAIVE_ROWS
 
 HEAVY_SUBSTITUTION_TABLE = read_sf5_table(get_data("hh_sf5_substitution.csv"))
 LIGHT_SUBSTITUTION_TABLE = read_sf5_table(get_data("hkl_sf5_substitution.csv"))
@@ -111,7 +188,12 @@ StartConstants = namedtuple("StartConstants", ["chain", "constants"])
 def update_helper_tables():
     global NAIVE 
     global NAIVE_ROWS
+    # CGJ
+    global NAIVE_TOTAL_ROWS
     NAIVE = get_naive_table()
+    # CGJ
+    NAIVE_TOTAL_ROWS = len(NAIVE.index)
+    NAIVE = filter_naive_to_target(NAIVE)
     NAIVE_ROWS = len(NAIVE.index)
 
 def translate_to_amino_acid(nucleotide_seq):

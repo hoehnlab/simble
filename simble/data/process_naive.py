@@ -24,12 +24,17 @@ AIRR_REQUIRED_FIELDS = ['sequence_id', 'sequence', 'rev_comp', 'productive', 'v_
 
 AIRR_FIELDS_TO_GENERATE = ['sequence_id', 'sequence', 'sequence_alignment', 'germline_alignment'] 
 
-AIRR_FIELDS_TO_KEEP = [x for x in AIRR_REQUIRED_FIELDS if x not in AIRR_FIELDS_TO_GENERATE]
+# CGJ
+ALIGNMENT_FIELDS = ["v_germline_length", "d_germline_length", "j_germline_length", "np2_length"]
+
+# CGJ
+AIRR_FIELDS_TO_KEEP = [x for x in AIRR_REQUIRED_FIELDS + ALIGNMENT_FIELDS if x not in AIRR_FIELDS_TO_GENERATE]
 
 FIELDS_NEEDED_AS_INPUT = ["sequence", "sequence_alignment", "cdr3"]
 
 def create_naive_table(heavy_file, light_file, join_id, keep_cols=None, keep_from=None):
-    use_cols = FIELDS_NEEDED_AS_INPUT + AIRR_FIELDS_TO_KEEP
+    # CGJ
+    use_cols = FIELDS_NEEDED_AS_INPUT + AIRR_FIELDS_TO_KEEP + [join_id]
     use_cols_heavy = use_cols
     use_cols_light = use_cols
     if keep_cols:
@@ -80,11 +85,13 @@ def main():
                          help="path to light chain AIRR tsv file", 
                          metavar="FILE", 
                          type=str)
-    parser.add_argument("-j", "--join", 
-                         dest="id", 
-                         help="column to join heavy and light tables on", 
+    # CGJ
+    parser.add_argument("-j", "--join",
+                         dest="id",
+                         help="column to join heavy and light tables on (default: cell_id)",
                          metavar="COL",
-                         type=str)
+                         type=str,
+                         default="cell_id")
     parser.add_argument("--keep-cols", 
                          dest="keep_cols",
                          help="additional columns from the naive data to keep",

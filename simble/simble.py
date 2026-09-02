@@ -38,6 +38,8 @@ from .location import as_enum
 from .parsing import get_parser, validate_and_process_args
 from .settings import s
 from .simulation import run_simulation
+# CGJ
+from .target import TargetAminoPair
 
 logger = logging.getLogger(__package__)
 # CGJ 8/4/26 
@@ -75,11 +77,38 @@ def set_logger():
     logger.propagate = False
 
 
-def do_simulation(clone_id, seed, founder_idx, filename):
+# CGJ
+def build_target_pair(seed):
+    """Builds the target that every clone in the run is scored against.
+
+    Args:
+        seed (np.random.SeedSequence): The seed for the multiplier distributions.
+    Returns:
+        TargetAminoPair: The target built from the supplied target sequence.
+    """
+    previous_rng = s._x_RNG
+    s._x_RNG = np.random.default_rng(seed)
+    try:
+        return TargetAminoPair(
+            s.TARGET["heavy_aligned"],
+            s.TARGET["light_aligned"],
+            s.TARGET["heavy_cdr3_aa_length"],
+            s.TARGET["light_cdr3_aa_length"])
+    finally:
+        # the settings are serialized to the workers, and the generator is not
+        # serializable, so leave it as it was found
+        s._x_RNG = previous_rng
+
+
+# CGJ
+def do_simulation(clone_id, seed, founder_idx, filename, target=None):
     """Runs a single simulation with the given seed and settings."""
     with open(filename, "r", encoding="utf-8") as f:
         settings = json.load(f, object_hook=as_enum)
     s.update_from_dict(settings)
+    # CGJ
+    # workers do not inherit the tables built when the package was imported
+    update_helper_tables()
     # CGJ 8/4/26
     # Each multiprocessing worker needs the recursion limit to be raised
     sys.setrecursionlimit(max(1000, int(s.END_TIME * RECURSION_LIMIT_MULTIPLIER)))
@@ -91,7 +120,8 @@ def do_simulation(clone_id, seed, founder_idx, filename):
     if s.DEV and not os.path.exists(curr_results):
         os.mkdir(curr_results)
     start = time.time()
-    data = run_simulation(clone_id, curr_results, founder_idx)
+    # CGJ
+    data = run_simulation(clone_id, curr_results, founder_idx, target)
     end = time.time()
 
     logger.debug("Time taken: %s", end - start)
@@ -174,6 +204,8 @@ def main():
         founder_indices = [None] * args.n
 
     clone = args.clone
+    # CGJ
+    target = build_target_pair(ss.spawn(1)[0]) if s.TARGET else None
 
     with tempfile.NamedTemporaryFile(mode="w") as tmpf:
         json.dump(s, tmpf, default=lambda o: o.encode(), indent=4)
@@ -183,14 +215,16 @@ def main():
         if args.processes > 1:
             with Pool(processes=args.processes) as pool:
                 result = pool.starmap(
-                    partial(do_simulation, filename=tmpf.name),
+                    # CGJ
+                    partial(do_simulation, filename=tmpf.name, target=target),
                     zip(range(clone, clone + args.n), seeds, founder_indices)
                     )
         else:
             result = []
             for i in range(args.n):
                 result.append(
-                    do_simulation(clone + i, seeds[i], founder_indices[i], tmpf.name)
+                    # CGJ
+                    do_simulation(clone + i, seeds[i], founder_indices[i], tmpf.name, target)
                     )
 
     process_results(result)

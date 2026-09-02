@@ -323,7 +323,8 @@ def simulate(clone_id, TARGET_PAIR, gc_start_generation, root, time=0): # pylint
 
     return sampled, pop_data, df
 
-def run_simulation(clone_id, result_dir, founder_idx=None):
+# CGJ
+def run_simulation(clone_id, result_dir, founder_idx=None, target=None):
     """Runs the simulation for a single iteration.
 
     Args:
@@ -331,6 +332,9 @@ def run_simulation(clone_id, result_dir, founder_idx=None):
         result_dir (str): The directory where results will be saved.
         founder_idx (int, optional): If given, the row of the naive pool to use
             as this clone's founder, instead of drawing one at random.
+        target (TargetAminoPair, optional): The target shared by every clone in
+            the run. If not given, a target is derived from this clone's own
+            naive sequence.
     Returns:
         dict: A dictionary containing the results of the simulation,
             including AIRR data, FASTA sequences, trees, and population data.
@@ -339,12 +343,16 @@ def run_simulation(clone_id, result_dir, founder_idx=None):
     naive = Cell(None, None, created_at=time, clone_id=clone_id, founder_idx=founder_idx)
     root = Node(naive, clone_id=clone_id)
     airr = []
-    TARGET_PAIR = TargetAminoPair( # pylint: disable=invalid-name
-        naive.heavy_chain.get_gapped_sequence(),
-        naive.light_chain.get_gapped_sequence(),
-        naive.heavy_chain.cdr3_length,
-        naive.light_chain.cdr3_length)
-    TARGET_PAIR.mutate(s.TARGET_MUTATIONS_HEAVY, s.TARGET_MUTATIONS_LIGHT)
+    # CGJ
+    if target is not None:
+        TARGET_PAIR = target
+    else:
+        TARGET_PAIR = TargetAminoPair(
+            naive.heavy_chain.get_gapped_sequence(),
+            naive.light_chain.get_gapped_sequence(),
+            naive.heavy_chain.cdr3_length,
+            naive.light_chain.cdr3_length)
+        TARGET_PAIR.mutate(s.TARGET_MUTATIONS_HEAVY, s.TARGET_MUTATIONS_LIGHT)
 
     sampled, pop_data, dev_df = simulate(clone_id, TARGET_PAIR, [root], root)
 
