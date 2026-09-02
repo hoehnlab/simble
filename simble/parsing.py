@@ -479,8 +479,9 @@ def validate_naive_pool(args, warnings):
     if s.TARGET and not s.UNIFORM:
         if compatible == 0:
             raise ValueError((
-                f"none of the {total} naive pairs are compatible with the target: the "
-                "locus and the v, cdr3 and alignment lengths of both chains have to match"
+                f"none of the {total} naive pairs are compatible with the target: both "
+                "chains have to match the locus and the v and junction lengths, and the "
+                "alignment lengths have to agree to within a codon"
                 ))
         warnings.append((
             f"the target restricts the naive pool to {compatible} of {total} pairs"

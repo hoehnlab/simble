@@ -80,25 +80,32 @@ def get_target_signature(row):
     Args:
         row (pd.Series): A row of a table using simble's internal column names.
     Returns:
-        dict: The locus and the v, cdr3 and alignment lengths of both chains.
+        dict: The locus and the v, junction and alignment lengths of both chains.
     """
     signature = {}
     for chain in ["heavy", "light"]:
         signature[f"{chain}_locus"] = row[f"{chain}_locus"]
         signature[f"{chain}_v"] = int(row[f"{chain}_v_germline_length"])
-        signature[f"{chain}_cdr3"] = len(row[f"{chain}_cdr3"])
+        signature[f"{chain}_junction"] = len(row[f"{chain}_junction"])
         signature[f"{chain}_aligned"] = len(row[f"{chain}_aligned"])
     return signature
 
 # CGJ
+# CGJ
+# how far a naive alignment may differ from the target in length and still be
+# scored against it. Anything under a codon only moves a trailing partial codon,
+# which is never translated, so the amino acids stay in register
+ALIGNMENT_LENGTH_TOLERANCE = 3
+
 def filter_naive_to_target(naive):
     """Restricts the naive pool to the pairs that line up with the target.
 
     Affinity is scored by comparing amino acids position by position, so a naive
     pair can only be used with a given target if both chains are from the same
-    locus and agree on the length of the v region, the cdr3 and the whole
-    alignment. Uniform simulations do not draw from the naive pool, so they are
-    left alone.
+    locus and agree on the length of the v region and the junction. The whole
+    alignment only has to agree to within a codon; the shortfall is padded onto
+    the target by pad_target_to_pool. Uniform simulations do not draw from the
+    naive pool, so they are left alone.
 
     Args:
         naive (pd.DataFrame): The full naive pool.
@@ -117,9 +124,38 @@ def filter_naive_to_target(naive):
                 ))
         compatible &= naive[f"{chain}_locus"] == signature[f"{chain}_locus"]
         compatible &= naive[f"{chain}_v_germline_length"] == signature[f"{chain}_v"]
-        compatible &= naive[f"{chain}_cdr3"].str.len() == signature[f"{chain}_cdr3"]
-        compatible &= naive[f"{chain}_aligned"].str.len() == signature[f"{chain}_aligned"]
+        compatible &= naive[f"{chain}_junction"].str.len() == signature[f"{chain}_junction"]
+        # CGJ
+        compatible &= (
+            (naive[f"{chain}_aligned"].str.len() - signature[f"{chain}_aligned"]).abs()
+            < ALIGNMENT_LENGTH_TOLERANCE
+            )
     return naive[compatible].reset_index(drop=True)
+
+# CGJ
+def pad_target_to_pool(naive):
+    """Pads the target out to the longest founder it will be scored against.
+
+    Affinity walks the founder's amino acids and reads the target at the same
+    index, so the target can never be the shorter of the two. Alignments that
+    agree only to within a codon can still differ by one translated position, so
+    the target is padded with Ns. Those translate to X, which matches no amino
+    acid and is never chosen for a target mutation, so the padding contributes
+    nothing to affinity. The signature is left alone, which keeps the padding
+    idempotent when the workers rebuild their tables.
+
+    Args:
+        naive (pd.DataFrame): The naive pool, already restricted to the target.
+    """
+    if not s.TARGET or s.UNIFORM or naive.empty:
+        return
+    target = dict(s.TARGET)
+    for chain in ["heavy", "light"]:
+        aligned = target[f"{chain}_aligned"]
+        longest = int(naive[f"{chain}_aligned"].str.len().max())
+        if longest > len(aligned):
+            target[f"{chain}_aligned"] = aligned + "N" * (longest - len(aligned))
+    s.TARGET = target
 
 def get_naive_table():
     if s.NAIVE_FILE:
@@ -195,6 +231,8 @@ def update_helper_tables():
     NAIVE_TOTAL_ROWS = len(NAIVE.index)
     NAIVE = filter_naive_to_target(NAIVE)
     NAIVE_ROWS = len(NAIVE.index)
+    # CGJ
+    pad_target_to_pool(NAIVE)
 
 def translate_to_amino_acid(nucleotide_seq):
     """ Translates a nucleotide sequence into an amino acid sequence.
