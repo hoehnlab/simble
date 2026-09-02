@@ -20,7 +20,7 @@
 from enum import Enum
 
 from .chain import HeavyChain, LightChain, EmptyChain
-from .helper import get_random_start_pair
+from .helper import get_start_pair
 from .location import LocationName
 from .settings import s
 
@@ -49,16 +49,17 @@ class Cell:
             created_at,
             is_alive=True,
             location=LocationName.GC,
-            # CGJ
             cell_type=CellType.DEFAULT,
+            clone_id=None,
             founder_idx=None) -> None:
+        self.user_constants = {}
         if heavy_chain is None:
-            # CGJ
-            heavy, light = get_random_start_pair(founder_idx)
-            heavy_chain = HeavyChain(**heavy.chain._asdict())
-            heavy_chain.airr_constants = heavy.constants
-            light_chain = LightChain(**light.chain._asdict())
-            light_chain.airr_constants = light.constants
+            pair = get_start_pair(clone_id-1 if clone_id else None, founder_idx=founder_idx)
+            heavy_chain = HeavyChain(**pair.heavy.chain._asdict())
+            heavy_chain.airr_constants = pair.heavy.constants
+            light_chain = LightChain(**pair.light.chain._asdict())
+            light_chain.airr_constants = pair.light.constants
+            self.user_constants = pair.user_constants
 
         if light_chain is None:
             light_chain = EmptyChain()
@@ -74,6 +75,7 @@ class Cell:
 
         self.mutation_rate = s.LOCATIONS[0].mutation_rate if self.location == LocationName.GC else 0
         self.affinity = 1
+        self.clone_id = clone_id
 
     def kill_cell(self):
         """Marks the cell as dead."""
@@ -92,6 +94,7 @@ class Cell:
         row["cell_id"]=str(id(self))
         row["location"]=self.location.value
         row["celltype"]=self.cell_type.value
+        row.update(self.user_constants)
         return row
 
     def as_AIRR(self, generation): # pylint: disable=invalid-name
@@ -126,10 +129,12 @@ class Cell:
             self.created_at,
             self.is_alive,
             self.location,
-            self.cell_type
+            self.cell_type,
+            self.clone_id
         )
         new.mutation_rate = self.mutation_rate
         new.affinity = self.affinity
+        new.user_constants = self.user_constants
         return new
 
     def calculate_affinity(self, target_pair):

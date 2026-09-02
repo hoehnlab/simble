@@ -42,6 +42,7 @@ keywords = [
 
 [project.scripts]
 simble = "simble.simble:main"
+process_naive = "simble.data.process_naive:main"
 
 [project.urls]
 Homepage = "https://github.com/hoehnlab/simble"

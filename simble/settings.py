@@ -137,6 +137,9 @@ class Settings(Encodable):
         self.FWR_VAR = 0.98
         self.TIME_SWITCH = 50
         self.GENERATIONS_PER_DAY = 0.5
+        self.NAIVE_FILE = None
+        self.USER_FIELDS_TO_KEEP = []
+        self.NAIVE_RANDOM = True
         self.MEMORY_SAVE = False
         self.KEEP_FULL_TREE = False
         self.QUIET = False

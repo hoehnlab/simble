@@ -26,6 +26,7 @@ import matplotlib.pyplot as plt
 import pandas as pd
 
 from .settings import s
+from .constants import AIRR_REQUIRED_FIELDS, SIMBLE_REQUIRED_FIELDS, AIRR_FIELDS_TO_GENERATE
 
 logger = logging.getLogger(__package__)
 
@@ -40,6 +41,19 @@ def get_data(path):
     """
     return os.path.join(_ROOT, 'data', path)
 
+def get_naive_table():
+    if s.NAIVE_FILE:
+        naive = pd.read_csv(s.NAIVE_FILE, header=0)
+        renamed_columns = {
+            "heavy_sequence": "heavy",
+            "light_sequence": "light",
+            "heavy_sequence_alignment": "heavy_aligned",
+            "light_sequence_alignment": "light_aligned"
+        }
+        naive.rename(columns=renamed_columns, inplace=True)
+    else:
+        naive = pd.read_csv(get_data("naive_pairs_filtered.csv"), header=0)
+    return naive
 AIRR_REQUIRED_FIELDS = [
     'sequence_id', 'sequence', 'rev_comp', 'productive', 'v_call', 'd_call',
     'j_call', 'sequence_alignment', 'germline_alignment', 'junction', 'junction_aa',
@@ -82,7 +96,8 @@ def read_sf5_table(filename):
 HEAVY_MUTABILITY_TABLE = read_sf5_table(get_data("hh_sf5.csv"))
 LIGHT_MUTABILITY_TABLE = read_sf5_table(get_data("hkl_sf5.csv"))
 
-NAIVE = pd.read_csv(get_data("naive_pairs_filtered.csv"), header=0)
+NAIVE = get_naive_table()
+NAIVE_ROWS = len(NAIVE.index)
 
 HEAVY_SUBSTITUTION_TABLE = read_sf5_table(get_data("hh_sf5_substitution.csv"))
 LIGHT_SUBSTITUTION_TABLE = read_sf5_table(get_data("hkl_sf5_substitution.csv"))
@@ -92,6 +107,12 @@ StartChain = namedtuple(
     ["nucleotide_seq", "gapped_seq", "cdr3_aa_length", "junction"]
     )
 StartConstants = namedtuple("StartConstants", ["chain", "constants"])
+
+def update_helper_tables():
+    global NAIVE 
+    global NAIVE_ROWS
+    NAIVE = get_naive_table()
+    NAIVE_ROWS = len(NAIVE.index)
 
 def translate_to_amino_acid(nucleotide_seq):
     """ Translates a nucleotide sequence into an amino acid sequence.
@@ -204,17 +225,21 @@ def get_unique_founder_indices(n, rng):
     """
     return rng.choice(len(NAIVE), size=n, replace=False)
 
-# CGJ
-def get_random_start_pair(founder_idx=None):
+def get_start_pair(i=None, founder_idx=None):
     """Generates a random start pair of heavy and light chains.
 
     Args:
+        i (int, optional): Clone index used to select a naive sequence
+            deterministically when NAIVE_RANDOM is False. Ignored in uniform
+            mode, and if founder_idx is given.
         founder_idx (int, optional): If given, use this row of NAIVE as the
-            founder instead of drawing one at random. Ignored in uniform mode.
+            founder instead of drawing one at random or by clone index.
+            Ignored in uniform mode.
     Returns:
-        StartPair: A named tuple containing the heavy and light chains.
+        StartPair: A named tuple containing the heavy and light chains and
+            any user-specified constants.
     """
-    StartPair = namedtuple("RawStartPair", ["heavy", "light"])
+    StartPair = namedtuple("RawStartPair", ["heavy", "light", "user_constants"])
     if s.UNIFORM:
         sequence = "".join(
             s.RNG.choice(
@@ -230,18 +255,23 @@ def get_random_start_pair(founder_idx=None):
         )
         empty = StartConstants(StartChain("", "", 0, ""), {})
         start_info = StartConstants(start_input, {"germline_alignment": sequence})
-        return StartPair(start_info, empty)
+        return StartPair(start_info, empty, {})
 
-    # CGJ 
-    row = NAIVE.iloc[[founder_idx]] if founder_idx is not None else NAIVE.sample(random_state=s.RNG)
-    heavy = _format_random_start_chain(row, "heavy")
-    light = _format_random_start_chain(row, "light")
+    if founder_idx is not None:
+        row = NAIVE.iloc[[founder_idx]]
+    elif i and not s.NAIVE_RANDOM:
+        row = NAIVE.iloc[[i % NAIVE_ROWS]]
+    else:
+        row = NAIVE.sample(random_state=s.RNG)
+    heavy = _format_start_chain(row, "heavy")
+    light = _format_start_chain(row, "light")
+    user_constants = {x: row[x] for x in s.USER_FIELDS_TO_KEEP}
     if len(heavy.chain.gapped_seq) < 312 or len(light.chain.gapped_seq) < 312:
         logger.warning("aligned sequence length is less than 312")
-    return StartPair(heavy, light)
+    return StartPair(heavy, light, user_constants)
 
 
-def _format_random_start_chain(row, chain_type):
+def _format_start_chain(row, chain_type):
     """Formats a random start chain from a row of the naive pairs DataFrame.
 
     Args:
