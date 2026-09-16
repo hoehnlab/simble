@@ -139,7 +139,11 @@ class Settings(Encodable):
         self.GENERATIONS_PER_DAY = 0.5
         self.NAIVE_FILE = None
         self.USER_FIELDS_TO_KEEP = []
-        self.NAIVE_RANDOM = True
+        # how each clone's founder naive pair is chosen: "random" (independent
+        # draws, with replacement), "ordered" (by clone id, modulo the naive
+        # pool size), or "unique" (drawn once per run, without replacement, so
+        # no two clones share a naive pair)
+        self.NAIVE_SELECTION = "random"
         # CGJ
         # a user-supplied target shared by every clone in the run; empty when the
         # target is derived per-clone from that clone's own naive sequence

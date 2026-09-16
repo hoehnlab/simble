@@ -51,10 +51,10 @@ class Cell:
             location=LocationName.GC,
             cell_type=CellType.DEFAULT,
             clone_id=None,
-            founder_idx=None) -> None:
+            naive_row_idx=None) -> None:
         self.user_constants = {}
         if heavy_chain is None:
-            pair = get_start_pair(clone_id-1 if clone_id else None, founder_idx=founder_idx)
+            pair = get_start_pair(clone_id, naive_row_idx=naive_row_idx)
             heavy_chain = HeavyChain(**pair.heavy.chain._asdict())
             heavy_chain.airr_constants = pair.heavy.constants
             light_chain = LightChain(**pair.light.chain._asdict())

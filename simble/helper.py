@@ -333,9 +333,12 @@ def remove_gaps(aligned):
     """
     return aligned.replace(".", "")
 
-# CGJ
-def get_unique_founder_indices(n, rng):
+def get_unique_naive_rows(n, rng):
     """Draws n unique row indices into the NAIVE pool, sampled without replacement.
+
+    Used to set up "unique" naive sampling: one row per clone, precomputed for
+    the whole run before any clone starts, since no single clone can guarantee
+    it avoids every other clone's row on its own.
 
     Args:
         n (int): The number of indices to draw.
@@ -345,16 +348,45 @@ def get_unique_founder_indices(n, rng):
     """
     return rng.choice(len(NAIVE), size=n, replace=False)
 
-def get_start_pair(i=None, founder_idx=None):
-    """Generates a random start pair of heavy and light chains.
+
+def select_naive_row(clone_id=None, naive_row_idx=None):
+    """Picks the row of NAIVE that a clone starts from.
+
+    Exactly one of three things happens, and they are checked in this order:
+      1. naive_row_idx is used directly, if given. This is how "unique"
+         sampling works: the row was already drawn, without replacement,
+         before any clone started (see get_unique_naive_rows).
+      2. Otherwise, if the run's sampling mode is "ordered", the row is
+         clone_id's position in NAIVE, wrapping around if there are more
+         clones than rows.
+      3. Otherwise (sampling mode "random", or no clone_id given), a row is
+         drawn independently, with replacement.
 
     Args:
-        i (int, optional): Clone index used to select a naive sequence
-            deterministically when NAIVE_RANDOM is False. Ignored in uniform
-            mode, and if founder_idx is given.
-        founder_idx (int, optional): If given, use this row of NAIVE as the
-            founder instead of drawing one at random or by clone index.
-            Ignored in uniform mode.
+        clone_id (int, optional): The clone's 1-indexed id. Used only for
+            "ordered" sampling.
+        naive_row_idx (int, optional): A specific row of NAIVE to use,
+            precomputed by the caller for "unique" sampling. Takes priority
+            over clone_id and the run's sampling mode.
+    Returns:
+        pd.DataFrame: A single-row table: the naive pair for this clone.
+    """
+    if naive_row_idx is not None:
+        return NAIVE.iloc[[naive_row_idx]]
+    if s.NAIVE_SELECTION == "ordered" and clone_id is not None:
+        return NAIVE.iloc[[(clone_id - 1) % NAIVE_ROWS]]
+    return NAIVE.sample(random_state=s.RNG)
+
+
+def get_start_pair(clone_id=None, naive_row_idx=None):
+    """Generates the start pair of heavy and light chains for a clone.
+
+    Args:
+        clone_id (int, optional): The clone's 1-indexed id. Used to pick a row
+            of NAIVE deterministically under "ordered" sampling. Ignored in
+            uniform mode, and if naive_row_idx is given.
+        naive_row_idx (int, optional): If given, use this row of NAIVE instead
+            of drawing one at random or by clone id. Ignored in uniform mode.
     Returns:
         StartPair: A named tuple containing the heavy and light chains and
             any user-specified constants.
@@ -377,12 +409,7 @@ def get_start_pair(i=None, founder_idx=None):
         start_info = StartConstants(start_input, {"germline_alignment": sequence})
         return StartPair(start_info, empty, {})
 
-    if founder_idx is not None:
-        row = NAIVE.iloc[[founder_idx]]
-    elif i and not s.NAIVE_RANDOM:
-        row = NAIVE.iloc[[i % NAIVE_ROWS]]
-    else:
-        row = NAIVE.sample(random_state=s.RNG)
+    row = select_naive_row(clone_id, naive_row_idx)
     heavy = _format_start_chain(row, "heavy")
     light = _format_start_chain(row, "light")
     user_constants = {x: row[x] for x in s.USER_FIELDS_TO_KEEP}

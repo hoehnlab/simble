@@ -33,7 +33,7 @@ from tqdm import tqdm
 
 # CGJ 
 from .helper import (ALL_TREE_NAMES, MEMORY_SAVE_TREE_NAMES, TREE_NAMES,
-                     get_unique_founder_indices, make_all_plots, update_helper_tables)
+                     get_unique_naive_rows, make_all_plots, update_helper_tables)
 from .location import as_enum
 from .parsing import get_parser, validate_and_process_args
 from .settings import s
@@ -101,7 +101,7 @@ def build_target_pair(seed):
 
 
 # CGJ
-def do_simulation(clone_id, seed, founder_idx, filename, target=None):
+def do_simulation(clone_id, seed, naive_row_idx, filename, target=None):
     """Runs a single simulation with the given seed and settings."""
     with open(filename, "r", encoding="utf-8") as f:
         settings = json.load(f, object_hook=as_enum)
@@ -121,7 +121,7 @@ def do_simulation(clone_id, seed, founder_idx, filename, target=None):
         os.mkdir(curr_results)
     start = time.time()
     # CGJ
-    data = run_simulation(clone_id, curr_results, founder_idx, target)
+    data = run_simulation(clone_id, curr_results, naive_row_idx, target)
     end = time.time()
 
     logger.debug("Time taken: %s", end - start)
@@ -197,11 +197,11 @@ def main():
     print(f"Seed: {ss.entropy}")
 
     # CGJ
-    if args.unique_founders and not s.UNIFORM:
-        founder_rng = np.random.default_rng(ss.spawn(1)[0])
-        founder_indices = get_unique_founder_indices(args.n, founder_rng)
+    if args.naive_sampling == "unique" and not s.UNIFORM:
+        naive_row_rng = np.random.default_rng(ss.spawn(1)[0])
+        naive_row_indices = get_unique_naive_rows(args.n, naive_row_rng)
     else:
-        founder_indices = [None] * args.n
+        naive_row_indices = [None] * args.n
 
     clone = args.clone
     # CGJ
@@ -217,14 +217,14 @@ def main():
                 result = pool.starmap(
                     # CGJ
                     partial(do_simulation, filename=tmpf.name, target=target),
-                    zip(range(clone, clone + args.n), seeds, founder_indices)
+                    zip(range(clone, clone + args.n), seeds, naive_row_indices)
                     )
         else:
             result = []
             for i in range(args.n):
                 result.append(
                     # CGJ
-                    do_simulation(clone + i, seeds[i], founder_indices[i], tmpf.name, target)
+                    do_simulation(clone + i, seeds[i], naive_row_indices[i], tmpf.name, target)
                     )
 
     process_results(result)

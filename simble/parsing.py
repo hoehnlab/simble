@@ -115,10 +115,19 @@ def get_parser():
                          type=str,
                          nargs="+",
                          default=None)
-    program.add_argument("--naive-random", 
-                         dest="naive_random", 
-                         help="randomly sample from naive input rather than by clone id, always true if naive file is not specified", 
-                         action="store_true")
+    program.add_argument("--naive-sampling",
+                         dest="naive_sampling",
+                         help=(
+                             "how to pick each clone's starting naive pair: 'random' "
+                             "(independent draws, with replacement), 'ordered' (by "
+                             "clone id, modulo the naive pool size), or 'unique' "
+                             "(drawn once per run, without replacement, so no two "
+                             "clones share a naive pair). Default: 'ordered' if "
+                             "--naive is given, otherwise 'random'."
+                             ),
+                         choices=["random", "ordered", "unique"],
+                         type=str,
+                         default=None)
     program.add_argument("--clone_id", 
                          dest="clone", 
                          help="specify a starting clone id (1-indexed)", 
@@ -195,16 +204,6 @@ def get_parser():
                          help="specify sample size for the 'Other' location",
                          default=None,
                          type=int)
-    # CGJ
-    sampling.add_argument("--unique-founders",
-                         dest="unique_founders",
-                         help=(
-                             "sample each clone's founder (naive) sequence without "
-                             "replacement, so no two clones start from the same naive "
-                             "sequence (default: sampled independently, with replacement)"
-                             ),
-                         action="store_true")
-
     model.add_argument("--neutral",
                        dest="neutral",
                        help="neutral simulation (no selection in germinal center)",
@@ -369,8 +368,35 @@ def validate_and_process_naive_input(args, warnings):
     # update the settings:
     _update_setting("NAIVE_FILE", args.naive)
     _update_setting("USER_FIELDS_TO_KEEP", args.keep_cols)
-    _update_setting("NAIVE_RANDOM", args.naive_random)
-    
+
+
+def resolve_naive_sampling(args, warnings):
+    """Resolves how each clone's starting naive pair is chosen, and records it.
+
+    Replaces the old separate --naive-random and --unique-founders flags with
+    one three-way choice, so only one setting ever controls this and the two
+    flags can no longer disagree with each other silently.
+
+    Args:
+        args (argparse.Namespace): The parsed command line arguments. Its
+            naive_sampling attribute is overwritten with the resolved value,
+            so later validation (validate_naive_pool) can rely on it directly.
+        warnings (list): The list to append warnings to.
+    """
+    if args.naive_sampling is None:
+        sampling = "ordered" if args.naive else "random"
+    else:
+        sampling = args.naive_sampling
+
+    if sampling != "random" and args.uniform:
+        warnings.append((
+            f"--naive-sampling {sampling} has no effect in uniform mode, since "
+            "uniform runs do not draw a starting pair from the naive pool."
+            ))
+
+    args.naive_sampling = sampling
+    _update_setting("NAIVE_SELECTION", sampling)
+
 # CGJ
 def read_target_table(args):
     """Reads the target, given either as one paired table or as two AIRR tsvs.
@@ -487,10 +513,10 @@ def validate_naive_pool(args, warnings):
             f"the target restricts the naive pool to {compatible} of {total} pairs"
             ))
 
-    if args.unique_founders and not args.uniform and args.n > compatible:
+    if args.naive_sampling == "unique" and not args.uniform and args.n > compatible:
         raise ValueError((
-            f"cannot sample {args.n} unique founders without replacement from a "
-            f"pool of only {compatible} naive sequences"
+            f"cannot sample {args.n} unique naive pairs without replacement from "
+            f"a pool of only {compatible} naive sequences"
             ))
 
 
@@ -586,13 +612,6 @@ def validate_and_process_args(args):
     if args.sample_size_other:
         s.LOCATIONS[1].sample_size = args.sample_size_other
 
-    # CGJ
-    if args.unique_founders and args.uniform:
-        warnings.append((
-            "Unique founders specified, but uniform mode does not draw founders "
-            "from the naive pool; ignoring."
-            ))
-
     if s.LOCATIONS[1].sample_times is None:
         # if no sample times are specified for the "Other" location, use the same as the GC
         s.LOCATIONS[1].sample_times = s.LOCATIONS[0].sample_times
@@ -601,6 +620,7 @@ def validate_and_process_args(args):
         raise ValueError(f"{args.clone} is not a valid clone id, clone ids must be greater than or equal to 1")
 
     validate_and_process_naive_input(args, warnings)
+    resolve_naive_sampling(args, warnings)
     # CGJ
     validate_and_process_target_input(args, warnings)
     validate_naive_pool(args, warnings)

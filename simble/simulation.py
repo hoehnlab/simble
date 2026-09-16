@@ -324,14 +324,15 @@ def simulate(clone_id, TARGET_PAIR, gc_start_generation, root, time=0): # pylint
     return sampled, pop_data, df
 
 # CGJ
-def run_simulation(clone_id, result_dir, founder_idx=None, target=None):
+def run_simulation(clone_id, result_dir, naive_row_idx=None, target=None):
     """Runs the simulation for a single iteration.
 
     Args:
         clone_id (int): The clone id of this simulation.
         result_dir (str): The directory where results will be saved.
-        founder_idx (int, optional): If given, the row of the naive pool to use
-            as this clone's founder, instead of drawing one at random.
+        naive_row_idx (int, optional): If given, the row of the naive pool to
+            use as this clone's starting pair, instead of drawing one by the
+            run's usual naive sampling mode.
         target (TargetAminoPair, optional): The target shared by every clone in
             the run. If not given, a target is derived from this clone's own
             naive sequence.
@@ -340,7 +341,7 @@ def run_simulation(clone_id, result_dir, founder_idx=None, target=None):
             including AIRR data, FASTA sequences, trees, and population data.
     """
     time = 0
-    naive = Cell(None, None, created_at=time, clone_id=clone_id, founder_idx=founder_idx)
+    naive = Cell(None, None, created_at=time, clone_id=clone_id, naive_row_idx=naive_row_idx)
     root = Node(naive, clone_id=clone_id)
     airr = []
     # CGJ

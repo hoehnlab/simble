@@ -137,20 +137,28 @@ may not be called any of the following:
 -junction_aa
 -junction_length
 
-When providing a naive dataset, the default behavior is that each clone will
-use the naive pair of sequences at row clone_id modulo (rows in naive dataset).
-For example, if the naive dataset has 10 entries, clone 6 will use the pair of 
-sequences in the 6th row, and clone 13 will use the 3rd row. 
+The `--naive-sampling` argument controls how each clone's starting pair is
+chosen from the naive data:
 
-If you would like each clone to use a random starting pair from the table:
+- `ordered` (the default whenever `--naive` is given): each clone uses the
+  naive pair at row clone_id modulo (rows in naive dataset). For example, if
+  the naive dataset has 10 entries, clone 6 will use the pair of sequences in
+  the 6th row, and clone 13 will use the 3rd row.
+- `random`: each clone draws an independent, random starting pair from the
+  table. The same pair can be reused by more than one clone. This is always
+  the mode used when `--naive` is not given.
+- `unique`: one starting pair is drawn per clone, without replacement, so no
+  two clones in the run share a naive pair. This requires at least as many
+  naive pairs as clones (`--number`/`-n`).
 
 ```sh
-simble --naive <naive_file.csv> --naive-random
+simble --naive <naive_file.csv> --naive-sampling random
+simble --naive <naive_file.csv> --naive-sampling unique
 ```
 
-or if you would like to specify a clone_id to start at:
+If you would like to specify a clone_id to start at:
 ```sh
-simble --naive <naive_file.csv> --clone-id 4
+simble --naive <naive_file.csv> --clone_id 4
 ```
 
 
@@ -409,10 +417,10 @@ Available arguments:
         <td>additional columns from the naive data to keep</td>
     </tr>
     <tr>
-        <td>--naive-random</td>
+        <td>--naive-sampling</td>
         <td></td>
-        <td></td>
-        <td>randomly sample from naive input rather than by clone id, always true if naive file is not specified</td>
+        <td>ordered if --naive is given, else random</td>
+        <td>how to pick each clone's naive pair: random, ordered, or unique</td>
     </tr>
 </table>
 
