@@ -340,7 +340,10 @@ def validate_and_process_naive_input(args, warnings):
         raise FileNotFoundError(f"{args.naive} cannot be found")
 
     try:
-        naive = pd.read_csv(args.naive, header=0)
+        # use the same reader as get_naive_table/read_target_table, so a .tsv
+        # naive file is validated the same way it is actually read later
+        naive = read_input_table(args.naive)
+
     except Exception as e:
         e.add_note(f"Cannot open file")
         raise
