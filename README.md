@@ -158,7 +158,7 @@ simble --naive <naive_file.csv> --naive-sampling unique
 
 If you would like to specify a clone_id to start at:
 ```sh
-simble --naive <naive_file.csv> --clone_id 4
+simble --naive <naive_file.csv> --clone-id 4
 ```
 
 

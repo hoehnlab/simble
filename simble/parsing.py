@@ -128,7 +128,7 @@ def get_parser():
                          choices=["random", "ordered", "unique"],
                          type=str,
                          default=None)
-    program.add_argument("--clone_id", 
+    program.add_argument("--clone-id", 
                          dest="clone", 
                          help="specify a starting clone id (1-indexed)", 
                          type=int,
