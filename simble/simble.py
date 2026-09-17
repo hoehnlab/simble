@@ -182,7 +182,7 @@ def main():
         warnings = validate_and_process_args(args)
     except Exception as e:
         raise SystemExit(e)
-    update_helper_tables()
+    # shouldn't need to call update_helper_tables() again here, called in validate_and_process_args() already
 
     set_logger()
     for warning in warnings:
