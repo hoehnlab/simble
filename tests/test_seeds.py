@@ -51,7 +51,7 @@ class TestSeeds(unittest.TestCase):
         with tempfile.NamedTemporaryFile(mode="w") as tmpf:
             json.dump(clean_settings, tmpf, default=lambda o: o.encode(), indent=4)
             tmpf.flush()
-            result1 = do_simulation(1, seed, tmpf.name)
+            result1 = do_simulation(1, seed, None, tmpf.name)
 
         clean_settings = Settings()
         clean_settings.LOCATIONS[0].sample_times = list(range(0, 10, 5))
@@ -59,7 +59,7 @@ class TestSeeds(unittest.TestCase):
         with tempfile.NamedTemporaryFile(mode="w") as tmpf:
             json.dump(clean_settings, tmpf, default=lambda o: o.encode(), indent=4)
             tmpf.flush()
-            result2 = do_simulation(1, seed, tmpf.name)
+            result2 = do_simulation(1, seed, None, tmpf.name)
 
         drop = ["sequence_id", "cell_id"]
         self.assertEqual(result1["data"], result2["data"])

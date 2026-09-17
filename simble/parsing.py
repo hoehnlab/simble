@@ -20,9 +20,16 @@
 import argparse
 import json
 import os
+import pandas as pd
 
+# CGJ
+from . import helper
+from .data.process_naive import create_naive_table
+from .helper import (get_target_signature, normalize_input_columns, read_input_table,
+                     update_helper_tables)
 from .location import as_enum
 from .settings import s
+from .constants import AIRR_FIELDS_TO_GENERATE, SIMBLE_REQUIRED_FIELDS
 from .target import DISTS_AND_DEFAULTS
 
 
@@ -95,6 +102,70 @@ def get_parser():
                          help="seed to seed the random number generators",
                          type=int,
                          default=None)
+    program.add_argument("--naive", 
+                         dest="naive",
+                         help="path to input naive sequences",
+                         metavar="FILE",
+                         type=str,
+                         default=None)
+    program.add_argument("--keep-cols", 
+                         dest="keep_cols",
+                         help="additional columns from the naive data to keep",
+                         metavar="COL",
+                         type=str,
+                         nargs="+",
+                         default=None)
+    program.add_argument("--naive-sampling",
+                         dest="naive_sampling",
+                         help=(
+                             "how to pick each clone's starting naive pair: 'random' "
+                             "(independent draws, with replacement), 'ordered' (by "
+                             "clone id, modulo the naive pool size), or 'unique' "
+                             "(drawn once per run, without replacement, so no two "
+                             "clones share a naive pair). Default: 'ordered' if "
+                             "--naive is given, otherwise 'random'."
+                             ),
+                         choices=["random", "ordered", "unique"],
+                         type=str,
+                         default=None)
+    program.add_argument("--clone-id", 
+                         dest="clone", 
+                         help="specify a starting clone id (1-indexed)", 
+                         type=int,
+                         default=1)
+    # CGJ
+    program.add_argument("--target",
+                         dest="target",
+                         help=(
+                             "path to a paired target sequence, in the same format as "
+                             "the naive input; used as the target for every clone in "
+                             "the run instead of deriving one per clone"
+                             ),
+                         metavar="FILE",
+                         type=str,
+                         default=None)
+    # CGJ
+    program.add_argument("--target-heavy",
+                         dest="target_heavy",
+                         help="path to the heavy chain AIRR tsv of the target, paired with --target-light",
+                         metavar="FILE",
+                         type=str,
+                         default=None)
+    # CGJ
+    program.add_argument("--target-light",
+                         dest="target_light",
+                         help="path to the light chain AIRR tsv of the target, paired with --target-heavy",
+                         metavar="FILE",
+                         type=str,
+                         default=None)
+    # CGJ
+    program.add_argument("--target-join",
+                         dest="target_join",
+                         help="column to join the target heavy and light tables on (default: cell_id)",
+                         metavar="COL",
+                         type=str,
+                         default="cell_id")
+
     program.add_argument("--memory-save",
                          dest="memory_save",
                          help="save memory by only using simplified trees",
@@ -133,7 +204,6 @@ def get_parser():
                          help="specify sample size for the 'Other' location",
                          default=None,
                          type=int)
-
     model.add_argument("--neutral",
                        dest="neutral",
                        help="neutral simulation (no selection in germinal center)",
@@ -240,6 +310,219 @@ def validate_samples(sample_info):
     if sample_info[2] > sample_info[1] - sample_info[0]:
         raise ValueError("sample step must be less than or equal to stop - start")
 
+
+# CGJ
+def validate_required_columns(columns, source):
+    """Checks that both chains of an input table have every field simble needs.
+
+    Args:
+        columns (list): The columns of the input table.
+        source (str): How to refer to the table in an error message.
+    Raises:
+        ValueError: If a required field is missing for either chain.
+    """
+    for chain in ["heavy", "light"]:
+        for col in SIMBLE_REQUIRED_FIELDS:
+            if f"{chain}_{col}" not in columns:
+                raise ValueError(
+                    f"{chain}_{col} is missing from the {source}. This is a required field"
+                    )
+
+
+def validate_and_process_naive_input(args, warnings):
+    if not args.naive:
+        if args.keep_cols:
+            warnings.append("Columns to keep can only be specified when providing naive input data. Ignoring --keep-cols.")
+        return
+
+    # check that naive file exists
+    if not os.path.exists(args.naive):
+        raise FileNotFoundError(f"{args.naive} cannot be found")
+
+    try:
+        # use the same reader as get_naive_table/read_target_table, so a .tsv
+        # naive file is validated the same way it is actually read later
+        naive = read_input_table(args.naive)
+
+    except Exception as e:
+        e.add_note(f"Cannot open file")
+        raise
+
+    naive_cols = list(naive.columns)
+
+    def raise_value_error(msg):
+        raise ValueError(msg)
+
+    def warn_missing_cols(col):
+        warnings.append(f"{col} is not in the naive input. Ignoring {col}.")
+        return col
+
+    # check that the required heavy and light chain columns are present
+    # CGJ
+    validate_required_columns(naive_cols, "naive input")
+
+    if args.keep_cols:
+        # check that keep_cols don't clash with simble-produced columns
+        [raise_value_error(f"{col} is an invalid column to keep") for col in args.keep_cols if col in AIRR_FIELDS_TO_GENERATE]
+        # check that keep_cols are in naive_file
+        missing_cols = [warn_missing_cols(col) for col in args.keep_cols if col not in naive_cols]
+        args.keep_cols = [col for col in args.keep_cols if not col in missing_cols]
+
+    # update the settings:
+    _update_setting("NAIVE_FILE", args.naive)
+    _update_setting("USER_FIELDS_TO_KEEP", args.keep_cols)
+
+
+def resolve_naive_sampling(args, warnings):
+    """Resolves how each clone's starting naive pair is chosen, and records it.
+
+    Replaces the old separate --naive-random and --unique-founders flags with
+    one three-way choice, so only one setting ever controls this and the two
+    flags can no longer disagree with each other silently.
+
+    Args:
+        args (argparse.Namespace): The parsed command line arguments. Its
+            naive_sampling attribute is overwritten with the resolved value,
+            so later validation (validate_naive_pool) can rely on it directly.
+        warnings (list): The list to append warnings to.
+    """
+    if args.naive_sampling is None:
+        sampling = "ordered" if args.naive else "random"
+    else:
+        sampling = args.naive_sampling
+
+    if sampling != "random" and args.uniform:
+        warnings.append((
+            f"--naive-sampling {sampling} has no effect in uniform mode, since "
+            "uniform runs do not draw a starting pair from the naive pool."
+            ))
+
+    args.naive_sampling = sampling
+    _update_setting("NAIVE_SELECTION", sampling)
+
+# CGJ
+def read_target_table(args):
+    """Reads the target, given either as one paired table or as two AIRR tsvs.
+
+    Args:
+        args (argparse.Namespace): The parsed command line arguments.
+    Returns:
+        pd.DataFrame: The target, using simble's internal column names.
+    Raises:
+        ValueError: If the target arguments are combined incorrectly.
+        FileNotFoundError: If a target file cannot be found.
+    """
+    if args.target and (args.target_heavy or args.target_light):
+        raise ValueError(
+            "specify the target either with --target or with --target-heavy and "
+            "--target-light, not both"
+            )
+    if bool(args.target_heavy) != bool(args.target_light):
+        raise ValueError("--target-heavy and --target-light must be given together")
+
+    if args.target:
+        if not os.path.exists(args.target):
+            raise FileNotFoundError(f"{args.target} cannot be found")
+        return read_input_table(args.target)
+
+    for filename in [args.target_heavy, args.target_light]:
+        if not os.path.exists(filename):
+            raise FileNotFoundError(f"{filename} cannot be found")
+    return create_naive_table(args.target_heavy, args.target_light, args.target_join)
+
+
+# CGJ
+def validate_and_process_target_input(args, warnings):
+    """Validates the target input and records it in the settings.
+
+    The target is shared by every clone in the run, so it is read once here
+    rather than derived per clone from each clone's own naive sequence.
+
+    Args:
+        args (argparse.Namespace): The parsed command line arguments.
+        warnings (list): The list to append warnings to.
+    Raises:
+        ValueError: If the target input is empty or missing required fields.
+    """
+    if not (args.target or args.target_heavy or args.target_light):
+        return
+
+    target = read_target_table(args)
+    if len(target.index) == 0:
+        raise ValueError("no target sequence found in the target input")
+    if len(target.index) > 1:
+        warnings.append((
+            f"the target input has {len(target.index)} rows, but the whole run shares "
+            "one target. Using the first row."
+            ))
+    validate_required_columns(list(target.columns), "target input")
+    for chain in ["heavy", "light"]:
+        if f"{chain}_v_germline_length" not in target.columns:
+            raise ValueError((
+                f"{chain}_v_germline_length is missing from the target input. It is "
+                "needed to match naive pairs to the target"
+                ))
+
+    row = normalize_input_columns(target).iloc[0]
+    signature = get_target_signature(row)
+    _update_setting("TARGET", {
+        "heavy_aligned": row["heavy_aligned"],
+        "light_aligned": row["light_aligned"],
+        "heavy_cdr3_aa_length": len(row["heavy_cdr3"]) // 3,
+        "light_cdr3_aa_length": len(row["light_cdr3"]) // 3,
+        "signature": signature,
+        })
+
+    if args.target_mutations_heavy is not None or args.target_mutations_light is not None:
+        warnings.append((
+            "Target mutations do not apply to a supplied target sequence; ignoring "
+            "--target-mutations-heavy and --target-mutations-light."
+            ))
+
+    if args.uniform:
+        # uniform runs generate their own founders, so the only thing that has to
+        # line up with the target is the sequence length
+        if args.sequence_length is not None and args.sequence_length != signature["heavy_aligned"]:
+            warnings.append((
+                f"specified sequence length {args.sequence_length} does not match the "
+                f"target length {signature['heavy_aligned']}. Using the target length."
+                ))
+        s.SEQUENCE_LENGTH = signature["heavy_aligned"]
+
+
+# CGJ
+def validate_naive_pool(args, warnings):
+    """Checks the naive pool can supply founders for this run.
+
+    Args:
+        args (argparse.Namespace): The parsed command line arguments.
+        warnings (list): The list to append warnings to.
+    Raises:
+        ValueError: If no compatible naive pairs remain, or too few of them to
+            give every clone its own founder.
+    """
+    update_helper_tables()
+    compatible = helper.NAIVE_ROWS
+    total = helper.NAIVE_TOTAL_ROWS
+
+    if s.TARGET and not s.UNIFORM:
+        if compatible == 0:
+            raise ValueError((
+                f"none of the {total} naive pairs are compatible with the target: both "
+                "chains have to match the locus and the v and junction lengths, and the "
+                "alignment lengths have to agree to within a codon"
+                ))
+        warnings.append((
+            f"the target restricts the naive pool to {compatible} of {total} pairs"
+            ))
+
+    if args.naive_sampling == "unique" and not args.uniform and args.n > compatible:
+        raise ValueError((
+            f"cannot sample {args.n} unique naive pairs without replacement from "
+            f"a pool of only {compatible} naive sequences"
+            ))
+
+
 def process_distribution_args(distribution, var, region):
     """Processes distribution-related command line arguments and updates the 
     global settings accordingly."""
@@ -335,6 +618,15 @@ def validate_and_process_args(args):
     if s.LOCATIONS[1].sample_times is None:
         # if no sample times are specified for the "Other" location, use the same as the GC
         s.LOCATIONS[1].sample_times = s.LOCATIONS[0].sample_times
+
+    if args.clone < 1:
+        raise ValueError(f"{args.clone} is not a valid clone id, clone ids must be greater than or equal to 1")
+
+    validate_and_process_naive_input(args, warnings)
+    resolve_naive_sampling(args, warnings)
+    # CGJ
+    validate_and_process_target_input(args, warnings)
+    validate_naive_pool(args, warnings)
 
     return warnings
 

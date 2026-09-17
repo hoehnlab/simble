@@ -24,8 +24,7 @@ AIRR_REQUIRED_FIELDS = ['sequence_id', 'sequence', 'rev_comp', 'productive',
                         'germline_alignment', 'junction', 'junction_aa', 'v_cigar',
                         'd_cigar', 'j_cigar', 'np1_length', 'v_germline_start',
                         'v_germline_end', 'd_germline_start', 'd_germline_end',
-                        'j_germline_start', 'j_germline_end',
-                        'germline_alignment_d_mask', 'locus']
+                        'j_germline_start', 'j_germline_end', 'locus']
 
 ALIGNMENT_FIELDS = ["v_germline_length", "d_germline_length", "j_germline_length",
                     'np2_length']

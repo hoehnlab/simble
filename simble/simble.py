@@ -20,6 +20,8 @@
 import json
 import logging
 import os
+# CGJ 8/4/26
+import sys
 import tempfile
 import time
 from functools import partial
@@ -29,14 +31,19 @@ import numpy as np
 import pandas as pd
 from tqdm import tqdm
 
+# CGJ 
 from .helper import (ALL_TREE_NAMES, MEMORY_SAVE_TREE_NAMES, TREE_NAMES,
-                     make_all_plots)
+                     get_unique_naive_rows, make_all_plots, update_helper_tables)
 from .location import as_enum
 from .parsing import get_parser, validate_and_process_args
 from .settings import s
 from .simulation import run_simulation
+# CGJ
+from .target import TargetAminoPair
 
 logger = logging.getLogger(__package__)
+# CGJ 8/4/26 
+RECURSION_LIMIT_MULTIPLIER = 1.5
 
 class TqdmLoggingHandler(logging.Handler):
     """Custom logging handler to write logs to tqdm output."""
@@ -70,21 +77,51 @@ def set_logger():
     logger.propagate = False
 
 
+# CGJ
+def build_target_pair(seed):
+    """Builds the target that every clone in the run is scored against.
 
-def do_simulation(i, seed, filename):
+    Args:
+        seed (np.random.SeedSequence): The seed for the multiplier distributions.
+    Returns:
+        TargetAminoPair: The target built from the supplied target sequence.
+    """
+    previous_rng = s._x_RNG
+    s._x_RNG = np.random.default_rng(seed)
+    try:
+        return TargetAminoPair(
+            s.TARGET["heavy_aligned"],
+            s.TARGET["light_aligned"],
+            s.TARGET["heavy_cdr3_aa_length"],
+            s.TARGET["light_cdr3_aa_length"])
+    finally:
+        # the settings are serialized to the workers, and the generator is not
+        # serializable, so leave it as it was found
+        s._x_RNG = previous_rng
+
+
+# CGJ
+def do_simulation(clone_id, seed, naive_row_idx, filename, target=None):
     """Runs a single simulation with the given seed and settings."""
     with open(filename, "r", encoding="utf-8") as f:
         settings = json.load(f, object_hook=as_enum)
     s.update_from_dict(settings)
+    # CGJ
+    # workers do not inherit the tables built when the package was imported
+    update_helper_tables()
+    # CGJ 8/4/26
+    # Each multiprocessing worker needs the recursion limit to be raised
+    sys.setrecursionlimit(max(1000, int(s.END_TIME * RECURSION_LIMIT_MULTIPLIER)))
     s._x_RNG = np.random.default_rng(seed) # pylint: disable=protected-access
     set_logger()
-    logger.info("Starting simulation %s", i)
+    logger.info(f"Starting simulation for clone {clone_id}")
     folder = s.RESULTS_DIR
-    curr_results = f'{folder}/results{i}/'
+    curr_results = f'{folder}/results{clone_id}/'
     if s.DEV and not os.path.exists(curr_results):
         os.mkdir(curr_results)
     start = time.time()
-    data = run_simulation(i, curr_results)
+    # CGJ
+    data = run_simulation(clone_id, curr_results, naive_row_idx, target)
     end = time.time()
 
     logger.debug("Time taken: %s", end - start)
@@ -141,7 +178,11 @@ def main():
     parser = get_parser()
 
     args = parser.parse_args()
-    warnings = validate_and_process_args(args)
+    try:
+        warnings = validate_and_process_args(args)
+    except Exception as e:
+        raise SystemExit(e)
+    # shouldn't need to call update_helper_tables() again here, called in validate_and_process_args() already
 
     set_logger()
     for warning in warnings:
@@ -155,6 +196,17 @@ def main():
     seeds = ss.spawn(args.n)
     print(f"Seed: {ss.entropy}")
 
+    # CGJ
+    if args.naive_sampling == "unique" and not s.UNIFORM:
+        naive_row_rng = np.random.default_rng(ss.spawn(1)[0])
+        naive_row_indices = get_unique_naive_rows(args.n, naive_row_rng)
+    else:
+        naive_row_indices = [None] * args.n
+
+    clone = args.clone
+    # CGJ
+    target = build_target_pair(ss.spawn(1)[0]) if s.TARGET else None
+
     with tempfile.NamedTemporaryFile(mode="w") as tmpf:
         json.dump(s, tmpf, default=lambda o: o.encode(), indent=4)
         tmpf.flush()
@@ -163,14 +215,16 @@ def main():
         if args.processes > 1:
             with Pool(processes=args.processes) as pool:
                 result = pool.starmap(
-                    partial(do_simulation, filename=tmpf.name),
-                    zip(range(args.n), seeds)
+                    # CGJ
+                    partial(do_simulation, filename=tmpf.name, target=target),
+                    zip(range(clone, clone + args.n), seeds, naive_row_indices)
                     )
         else:
             result = []
             for i in range(args.n):
                 result.append(
-                    do_simulation(i, seeds[i], tmpf.name)
+                    # CGJ
+                    do_simulation(clone + i, seeds[i], naive_row_indices[i], tmpf.name, target)
                     )
 
     process_results(result)
