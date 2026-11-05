@@ -72,6 +72,12 @@ class Node:
         self.identical_children = 0
 
     @property
+    def name(self):
+        """The node's name in Newick output. This is the same value as the
+        ``cell_id`` column in the AIRR output."""
+        return f"{str(self.clone_id)}_{str(id(self.cell))}"
+
+    @property
     def time_since_last_split(self):
         """Calculates the time since the last split in the tree."""
         if self.parent is None:
@@ -144,9 +150,9 @@ class Node:
             str: The Newick representation of the node and, 
                 if subtrees' Newick strings are provided, its children.
         """
-        name = f"{str(self.clone_id)}_{str(id(self.cell))}"
+        name = self.name
         labels = (
-            f"cell_id={str(self.clone_id)}_{str(id(self.cell))},"
+            f"cell_id={name},"
             f"location={self.cell.location.value},"
             f"generation={self.generation},"
             f"occupancy={self.occupancy},"
@@ -323,3 +329,43 @@ def simplify_tree(root):
             for child in current_node.children:
                 subtrees.append((new_node, child, 0, 0))
     return new_root
+
+
+def get_internal_nodes(root):
+    """Gets the internal nodes of a tree, and the tips below each node.
+
+    The root is always included. In a simplified tree (see ``simplify_tree``),
+    the internal nodes are the root and the nodes where the lineage splits.
+
+    This function does not use recursion, so it is safe for deep trees.
+
+    Args:
+        root (Node): The root node of the tree.
+    Returns:
+        list: A list of ``(node, descendant_tip_names)`` tuples in pre-order
+            (each parent comes before its children). ``descendant_tip_names``
+            is a sorted list of the names of all tips below the node.
+    """
+    order = []
+    stack = [root]
+    while len(stack) > 0:
+        current = stack.pop()
+        order.append(current)
+        stack.extend(reversed(current.children))
+
+    # visit children before parents to collect the tips below each node
+    tips_below = {}
+    for node in reversed(order):
+        if len(node.children) == 0:
+            tips_below[node] = [node.name]
+        else:
+            tips = []
+            for child in node.children:
+                tips.extend(tips_below[child])
+            tips_below[node] = tips
+
+    return [
+        (node, sorted(tips_below[node]))
+        for node in order
+        if node is root or len(node.children) > 0
+        ]

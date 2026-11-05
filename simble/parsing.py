@@ -88,6 +88,13 @@ def get_parser():
                          dest="fasta",
                          help="output as fasta",
                          action="store_true")
+    program.add_argument("--internal-nodes",
+                         dest="internal_nodes",
+                         help=(
+                             "also output the true sequences of the simplified "
+                             "tree's internal nodes (all_internal_nodes_airr.tsv)"
+                             ),
+                         action="store_true")
     program.add_argument("--config",
                          dest="config",
                          help=(
@@ -600,6 +607,7 @@ def validate_and_process_args(args):
     _update_setting("TARGET_MUTATIONS_LIGHT", args.target_mutations_light)
     _update_setting("DEV", args.dev)
     _update_setting("FASTA", args.fasta)
+    _update_setting("INTERNAL_NODES", args.internal_nodes)
 
     process_distribution_args(args.cdr_dist, args.cdr_var, "cdr")
     process_distribution_args(args.fwr_dist, args.fwr_var, "fwr")

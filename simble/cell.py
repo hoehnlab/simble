@@ -103,22 +103,38 @@ class Cell:
         light = self._add_cell_AIRR(self.light_chain.as_AIRR(generation))
         return [heavy, light]
 
-    def as_fasta_helper(self, generation, heavy):
-        """Returns the cell and chain data in FASTA format for a single chain."""
-        row = {
-            "locus": "IGH" if heavy else "IGL",
-            "sample_time": generation,
-            "location": self.location.value,
-            "celltype": self.cell_type.value,
-        }
-        row = "|".join([f"{x}={y}" for x, y in row.items()])
-        seq = self.heavy_chain.nucleotide_seq if heavy else self.light_chain.nucleotide_seq
-        return f">{str(id(self))}_{'heavy' if heavy else 'light'}|{row}\n{seq}\n"
+    def as_fasta_helper(self, generation, heavy, name=None, extra_fields=None):
+        """Returns the cell and chain data in FASTA format for a single chain.
 
-    def as_fasta(self, generation):
-        """Returns both chains with cell data in FASTA format."""
-        heavy = self.as_fasta_helper(generation, heavy=True)
-        light = self.as_fasta_helper(generation, heavy=False)
+        Args:
+            generation (int): The sample time. If None (for example, for an
+                internal node), the header does not include ``sample_time``.
+            heavy (bool): Whether to write the heavy chain (else the light chain).
+            name (str, optional): The name of the record. Use the node's name
+                (``Node.name``), so that the FASTA IDs are the same as the AIRR
+                ``sequence_id`` and the Newick names. If None, the cell's id
+                is used (without a clone prefix).
+            extra_fields (dict, optional): More fields to add to the header.
+        """
+        chain = self.heavy_chain if heavy else self.light_chain
+        row = {"locus": chain.locus}
+        if generation is not None:
+            row["sample_time"] = generation
+        row["location"] = self.location.value
+        row["celltype"] = self.cell_type.value
+        if extra_fields is not None:
+            row.update(extra_fields)
+        row = "|".join([f"{x}={y}" for x, y in row.items()])
+        name = str(id(self)) if name is None else name
+        return f">{name}_{'heavy' if heavy else 'light'}|{row}\n{chain.nucleotide_seq}\n"
+
+    def as_fasta(self, generation, name=None, extra_fields=None):
+        """Returns both chains with cell data in FASTA format.
+
+        See ``as_fasta_helper`` for the arguments.
+        """
+        heavy = self.as_fasta_helper(generation, True, name, extra_fields)
+        light = self.as_fasta_helper(generation, False, name, extra_fields)
         return heavy + light
 
     def remake_self(self):
@@ -161,10 +177,12 @@ class SingleChainCell(Cell):
         heavy = self._add_cell_AIRR(self.heavy_chain.as_AIRR(generation))
         return [heavy]
 
-    def as_fasta(self, generation):
-        """Returns both chains with cell data in FASTA format."""
-        heavy = self.as_fasta_helper(generation, heavy=True)
-        return heavy
+    def as_fasta(self, generation, name=None, extra_fields=None):
+        """Returns the heavy chain with cell data in FASTA format.
+
+        See ``Cell.as_fasta_helper`` for the arguments.
+        """
+        return self.as_fasta_helper(generation, True, name, extra_fields)
 
     def calculate_affinity(self, target_pair):
         """Calculates the affinity of the cell's chain to a target pair."""

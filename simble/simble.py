@@ -144,6 +144,15 @@ def process_results(results):
     if "d_germline_end" in airr.columns:
         airr["d_germline_end"] = airr["d_germline_end"].astype(pd.Int64Dtype())
     airr.to_csv(s.RESULTS_DIR + "/all_samples_airr.tsv", sep="\t", index=False)
+
+    if s.INTERNAL_NODES and "internal_airr" in all_results:
+        internal_airr = _fix_integer_columns(pd.concat(all_results["internal_airr"]))
+        internal_airr.to_csv(
+            s.RESULTS_DIR + "/all_internal_nodes_airr.tsv", sep="\t", index=False
+            )
+        if s.FASTA:
+            with open(s.RESULTS_DIR + "/all_internal_nodes.fasta", "w", encoding="utf-8") as f:
+                f.write("\n".join(all_results["internal_fasta"]))
     pop_data = pd.concat(all_results["pop_data"])
     pop_data.to_csv(s.RESULTS_DIR + "/population_data.csv", index=False)
     if s.DEV:

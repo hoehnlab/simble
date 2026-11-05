@@ -122,6 +122,20 @@ class Chain:
         """ Checks if the chain is functional based on its amino acid sequence."""
         return self.get_functionality()
 
+    @property
+    def locus(self):
+        """Returns the locus of the chain (for example IGH, IGK or IGL).
+
+        The locus comes from the naive data, as in the AIRR output. If the
+        naive data has no locus (for example, in uniform mode), the default
+        is IGH for a heavy chain and IGL for a light chain.
+        """
+        default = "IGH" if self.IS_HEAVY else "IGL"
+        if not self.airr_constants:
+            return default
+        locus = self.airr_constants.get("locus")
+        return locus if isinstance(locus, str) and locus != "" else default
+
 
     def copy(self):
         """Creates a deep copy of the Chain object"""

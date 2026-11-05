@@ -210,7 +210,49 @@ Or to keep columns "cell_barcode" and "cell_label" from the light table:
 process_naive -o my_naive_data.csv --heavy IGH_naive_airr.tsv --light IGL_IGK_naive_airr.tsv -j cell_id --keep-cols cell_barcode cell_label --keep-from light
 ```
 
+## Internal node (ancestral) sequences
 
+simble records the true sequence of every cell in the lineage. To also write the
+true sequences of the internal nodes of the simplified trees, use the
+`--internal-nodes` argument:
+
+```sh
+simble --internal-nodes [other args]
+```
+
+This writes `all_internal_nodes_airr.tsv`. With `--fasta`, it also writes
+`all_internal_nodes.fasta`. These files are not written by default.
+
+These sequences are not reconstructions. They are the known (true) sequences
+from the simulation, so you can use them to test ancestral sequence
+reconstruction (ASR) methods.
+
+The internal nodes are the root (the naive cell) and each node where the
+lineage splits. The simplified tree and the simplified time tree have the same
+nodes, so one file agrees with both trees. The `cell_id` of each row is the same
+as the node's name in the Newick trees. Each chain has its own row, as in
+`all_samples_airr.tsv`. The file has these columns in addition to the usual
+AIRR columns:
+
+| column | description |
+| ------ | ----------- |
+| `node_type` | `root` or `internal` |
+| `parent_id` | `cell_id` of the parent node (empty for the root) |
+| `generation` | generation of the node (its position in the time tree) |
+| `branch_generations` | branch length to the parent in the time tree |
+| `branch_mutations` | mutations in this chain on the branch to the parent (the genetic distance tree's branch length is the sum for both chains) |
+| `n_descendant_tips` | number of sampled cells below this node |
+| `descendant_tips` | `cell_id`s of the sampled cells below this node, separated by `;` |
+
+`sample_time` is empty, because internal nodes are not sampled.
+
+In `all_samples.fasta` and `all_internal_nodes.fasta`, each record ID is the same
+as the `sequence_id` in the AIRR output (`<cell_id>_heavy` or `<cell_id>_light`).
+The FASTA headers do not include `descendant_tips`.
+
+A reconstructed tree usually has a different topology from the true tree. To
+compare a reconstructed node with a true node, match them by the set of sampled
+cells below each node (`descendant_tips`).
 
 ## All arguments
 
@@ -379,6 +421,12 @@ Available arguments:
         <td></td>
         <td></td>
         <td>if present, also write a fasta file</td>
+    </tr>
+    <tr>
+        <td>--internal-nodes</td>
+        <td></td>
+        <td></td>
+        <td>if present, also write the true sequences of the simplified tree's internal nodes</td>
     </tr>
     <tr>
         <td>--config</td>

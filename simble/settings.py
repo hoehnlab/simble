@@ -88,6 +88,8 @@ class Settings(Encodable):
         _x_RNG (random.Random): Random number generator instance.
         DEV (bool): Development mode flag.
         FASTA (bool): Whether to output results in FASTA format.
+        INTERNAL_NODES (bool): Whether to output the true sequences of the
+            simplified tree's internal nodes.
         VERBOSE (bool): Verbosity level for logging.
         CDR_DIST (str): Distribution type for CDR mutations.
         CDR_VAR (float): Variance for CDR mutations.
@@ -130,6 +132,7 @@ class Settings(Encodable):
         self._x_RNG = None # pylint: disable=protected-access
         self.DEV = False
         self.FASTA = False
+        self.INTERNAL_NODES = False
         self.VERBOSE = False
         self.CDR_DIST = "exponential"
         self.CDR_VAR = 0.995
