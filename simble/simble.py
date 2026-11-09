@@ -128,6 +128,14 @@ def do_simulation(clone_id, seed, naive_row_idx, filename, target=None):
     return data
 
 
+def _fix_integer_columns(airr):
+    """Keeps integer columns that have empty values as integers (not floats)."""
+    for column in ["d_germline_start", "d_germline_end"]:
+        if column in airr.columns:
+            airr[column] = airr[column].astype(pd.Int64Dtype())
+    return airr
+
+
 def process_results(results):
     """Processes the results of the simulations and saves them to files."""
     all_results = {}
@@ -138,11 +146,7 @@ def process_results(results):
         fasta_string = "\n".join(all_results["fasta"])
         with open(s.RESULTS_DIR + "/all_samples.fasta", "w", encoding="utf-8") as f:
             f.write(fasta_string)
-    airr = pd.concat(all_results["airr"])
-    if "d_germline_start" in airr.columns:
-        airr["d_germline_start"] = airr["d_germline_start"].astype(pd.Int64Dtype())
-    if "d_germline_end" in airr.columns:
-        airr["d_germline_end"] = airr["d_germline_end"].astype(pd.Int64Dtype())
+    airr = _fix_integer_columns(pd.concat(all_results["airr"]))
     airr.to_csv(s.RESULTS_DIR + "/all_samples_airr.tsv", sep="\t", index=False)
 
     if s.INTERNAL_NODES and "internal_airr" in all_results:
