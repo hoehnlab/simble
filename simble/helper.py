@@ -26,6 +26,7 @@ import matplotlib.pyplot as plt
 import pandas as pd
 
 from .settings import s
+from .constants import AIRR_REQUIRED_FIELDS, SIMBLE_REQUIRED_FIELDS, AIRR_FIELDS_TO_GENERATE
 
 logger = logging.getLogger(__package__)
 
@@ -40,6 +41,129 @@ def get_data(path):
     """
     return os.path.join(_ROOT, 'data', path)
 
+# CGJ
+INPUT_COLUMN_NAMES = {
+    "heavy_sequence": "heavy",
+    "light_sequence": "light",
+    "heavy_sequence_alignment": "heavy_aligned",
+    "light_sequence_alignment": "light_aligned"
+}
+
+# CGJ
+def read_input_table(filename):
+    """Reads a table of paired heavy and light sequences.
+
+    Args:
+        filename (str): The path to the file. Tab separated if it ends in .tsv,
+            comma separated otherwise.
+    Returns:
+        pd.DataFrame: The table, using the column names of the input.
+    """
+    separator = "\t" if str(filename).endswith(".tsv") else ","
+    return pd.read_csv(filename, sep=separator, header=0)
+
+# CGJ
+def normalize_input_columns(table):
+    """Renames the columns of an input table to simble's internal names.
+
+    Args:
+        table (pd.DataFrame): A table of paired heavy and light sequences.
+    Returns:
+        pd.DataFrame: The same table, using simble's internal column names.
+    """
+    return table.rename(columns=INPUT_COLUMN_NAMES)
+
+# CGJ
+def get_target_signature(row):
+    """Gets what a naive pair has to match to be compatible with a target.
+
+    Args:
+        row (pd.Series): A row of a table using simble's internal column names.
+    Returns:
+        dict: The locus and the v, junction and alignment lengths of both chains.
+    """
+    signature = {}
+    for chain in ["heavy", "light"]:
+        signature[f"{chain}_locus"] = row[f"{chain}_locus"]
+        signature[f"{chain}_v"] = int(row[f"{chain}_v_germline_length"])
+        signature[f"{chain}_junction"] = len(row[f"{chain}_junction"])
+        signature[f"{chain}_aligned"] = len(row[f"{chain}_aligned"])
+    return signature
+
+# CGJ
+# CGJ
+# how far a naive alignment may differ from the target in length and still be
+# scored against it. Anything under a codon only moves a trailing partial codon,
+# which is never translated, so the amino acids stay in register
+ALIGNMENT_LENGTH_TOLERANCE = 3
+
+def filter_naive_to_target(naive):
+    """Restricts the naive pool to the pairs that line up with the target.
+
+    Affinity is scored by comparing amino acids position by position, so a naive
+    pair can only be used with a given target if both chains are from the same
+    locus and agree on the length of the v region and the junction. The whole
+    alignment only has to agree to within a codon; the shortfall is padded onto
+    the target by pad_target_to_pool. Uniform simulations do not draw from the
+    naive pool, so they are left alone.
+
+    Args:
+        naive (pd.DataFrame): The full naive pool.
+    Returns:
+        pd.DataFrame: The pairs compatible with the target.
+    """
+    if not s.TARGET or s.UNIFORM:
+        return naive
+    signature = s.TARGET["signature"]
+    compatible = pd.Series(True, index=naive.index)
+    for chain in ["heavy", "light"]:
+        if f"{chain}_v_germline_length" not in naive.columns:
+            raise ValueError((
+                f"{chain}_v_germline_length is missing from the naive input. It is "
+                "needed to match naive pairs to a target"
+                ))
+        compatible &= naive[f"{chain}_locus"] == signature[f"{chain}_locus"]
+        compatible &= naive[f"{chain}_v_germline_length"] == signature[f"{chain}_v"]
+        compatible &= naive[f"{chain}_junction"].str.len() == signature[f"{chain}_junction"]
+        # CGJ
+        compatible &= (
+            (naive[f"{chain}_aligned"].str.len() - signature[f"{chain}_aligned"]).abs()
+            < ALIGNMENT_LENGTH_TOLERANCE
+            )
+    return naive[compatible].reset_index(drop=True)
+
+# CGJ
+def pad_target_to_pool(naive):
+    """Pads the target out to the longest founder it will be scored against.
+
+    Affinity walks the founder's amino acids and reads the target at the same
+    index, so the target can never be the shorter of the two. Alignments that
+    agree only to within a codon can still differ by one translated position, so
+    the target is padded with Ns. Those translate to X, which matches no amino
+    acid and is never chosen for a target mutation, so the padding contributes
+    nothing to affinity. The signature is left alone, which keeps the padding
+    idempotent when the workers rebuild their tables.
+
+    Args:
+        naive (pd.DataFrame): The naive pool, already restricted to the target.
+    """
+    if not s.TARGET or s.UNIFORM or naive.empty:
+        return
+    target = dict(s.TARGET)
+    for chain in ["heavy", "light"]:
+        aligned = target[f"{chain}_aligned"]
+        longest = int(naive[f"{chain}_aligned"].str.len().max())
+        if longest > len(aligned):
+            target[f"{chain}_aligned"] = aligned + "N" * (longest - len(aligned))
+    s.TARGET = target
+
+def get_naive_table():
+    if s.NAIVE_FILE:
+        # CGJ
+        naive = normalize_input_columns(read_input_table(s.NAIVE_FILE))
+    else:
+        naive = pd.read_csv(get_data("naive_pairs_filtered.csv"), header=0)
+    return naive
 AIRR_REQUIRED_FIELDS = [
     'sequence_id', 'sequence', 'rev_comp', 'productive', 'v_call', 'd_call',
     'j_call', 'sequence_alignment', 'germline_alignment', 'junction', 'junction_aa',
@@ -82,7 +206,11 @@ def read_sf5_table(filename):
 HEAVY_MUTABILITY_TABLE = read_sf5_table(get_data("hh_sf5.csv"))
 LIGHT_MUTABILITY_TABLE = read_sf5_table(get_data("hkl_sf5.csv"))
 
-NAIVE = pd.read_csv(get_data("naive_pairs_filtered.csv"), header=0)
+NAIVE = get_naive_table()
+NAIVE_ROWS = len(NAIVE.index)
+# CGJ
+# how many pairs the pool held before it was restricted to the target
+NAIVE_TOTAL_ROWS = NAIVE_ROWS
 
 HEAVY_SUBSTITUTION_TABLE = read_sf5_table(get_data("hh_sf5_substitution.csv"))
 LIGHT_SUBSTITUTION_TABLE = read_sf5_table(get_data("hkl_sf5_substitution.csv"))
@@ -92,6 +220,19 @@ StartChain = namedtuple(
     ["nucleotide_seq", "gapped_seq", "cdr3_aa_length", "junction"]
     )
 StartConstants = namedtuple("StartConstants", ["chain", "constants"])
+
+def update_helper_tables():
+    global NAIVE 
+    global NAIVE_ROWS
+    # CGJ
+    global NAIVE_TOTAL_ROWS
+    NAIVE = get_naive_table()
+    # CGJ
+    NAIVE_TOTAL_ROWS = len(NAIVE.index)
+    NAIVE = filter_naive_to_target(NAIVE)
+    NAIVE_ROWS = len(NAIVE.index)
+    # CGJ
+    pad_target_to_pool(NAIVE)
 
 def translate_to_amino_acid(nucleotide_seq):
     """ Translates a nucleotide sequence into an amino acid sequence.
@@ -192,14 +333,65 @@ def remove_gaps(aligned):
     """
     return aligned.replace(".", "")
 
+def get_unique_naive_rows(n, rng):
+    """Draws n unique row indices into the NAIVE pool, sampled without replacement.
 
-def get_random_start_pair():
-    """Generates a random start pair of heavy and light chains.
+    Used to set up "unique" naive sampling: one row per clone, precomputed for
+    the whole run before any clone starts, since no single clone can guarantee
+    it avoids every other clone's row on its own.
 
+    Args:
+        n (int): The number of indices to draw.
+        rng (np.random.Generator): The random number generator to use.
     Returns:
-        StartPair: A named tuple containing the heavy and light chains.
+        np.ndarray: An array of n unique indices into NAIVE.
     """
-    StartPair = namedtuple("RawStartPair", ["heavy", "light"])
+    return rng.choice(len(NAIVE), size=n, replace=False)
+
+
+def select_naive_row(clone_id=None, naive_row_idx=None):
+    """Picks the row of NAIVE that a clone starts from.
+
+    Exactly one of three things happens, and they are checked in this order:
+      1. naive_row_idx is used directly, if given. This is how "unique"
+         sampling works: the row was already drawn, without replacement,
+         before any clone started (see get_unique_naive_rows).
+      2. Otherwise, if the run's sampling mode is "ordered", the row is
+         clone_id's position in NAIVE, wrapping around if there are more
+         clones than rows.
+      3. Otherwise (sampling mode "random", or no clone_id given), a row is
+         drawn independently, with replacement.
+
+    Args:
+        clone_id (int, optional): The clone's 1-indexed id. Used only for
+            "ordered" sampling.
+        naive_row_idx (int, optional): A specific row of NAIVE to use,
+            precomputed by the caller for "unique" sampling. Takes priority
+            over clone_id and the run's sampling mode.
+    Returns:
+        pd.DataFrame: A single-row table: the naive pair for this clone.
+    """
+    if naive_row_idx is not None:
+        return NAIVE.iloc[[naive_row_idx]]
+    if s.NAIVE_SELECTION == "ordered" and clone_id is not None:
+        return NAIVE.iloc[[(clone_id - 1) % NAIVE_ROWS]]
+    return NAIVE.sample(random_state=s.RNG)
+
+
+def get_start_pair(clone_id=None, naive_row_idx=None):
+    """Generates the start pair of heavy and light chains for a clone.
+
+    Args:
+        clone_id (int, optional): The clone's 1-indexed id. Used to pick a row
+            of NAIVE deterministically under "ordered" sampling. Ignored in
+            uniform mode, and if naive_row_idx is given.
+        naive_row_idx (int, optional): If given, use this row of NAIVE instead
+            of drawing one at random or by clone id. Ignored in uniform mode.
+    Returns:
+        StartPair: A named tuple containing the heavy and light chains and
+            any user-specified constants.
+    """
+    StartPair = namedtuple("RawStartPair", ["heavy", "light", "user_constants"])
     if s.UNIFORM:
         sequence = "".join(
             s.RNG.choice(
@@ -215,17 +407,18 @@ def get_random_start_pair():
         )
         empty = StartConstants(StartChain("", "", 0, ""), {})
         start_info = StartConstants(start_input, {"germline_alignment": sequence})
-        return StartPair(start_info, empty)
+        return StartPair(start_info, empty, {})
 
-    row = NAIVE.sample(random_state=s.RNG)
-    heavy = _format_random_start_chain(row, "heavy")
-    light = _format_random_start_chain(row, "light")
+    row = select_naive_row(clone_id, naive_row_idx)
+    heavy = _format_start_chain(row, "heavy")
+    light = _format_start_chain(row, "light")
+    user_constants = {x: row[x] for x in s.USER_FIELDS_TO_KEEP}
     if len(heavy.chain.gapped_seq) < 312 or len(light.chain.gapped_seq) < 312:
         logger.warning("aligned sequence length is less than 312")
-    return StartPair(heavy, light)
+    return StartPair(heavy, light, user_constants)
 
 
-def _format_random_start_chain(row, chain_type):
+def _format_start_chain(row, chain_type):
     """Formats a random start chain from a row of the naive pairs DataFrame.
 
     Args:

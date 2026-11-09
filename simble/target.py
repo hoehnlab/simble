@@ -101,6 +101,16 @@ class TargetAminoPair:
         self.heavy = TargetAminoAcid(heavy_gapped_nucleotide, cdr3_length=heavy_cdr3_length)
         self.light = TargetAminoAcid(light_gapped_nucleotide, cdr3_length=light_cdr3_length)
 
+    def add_target_mutation_sites(self, heavy_mutation_locations, light_mutation_locations):
+        """Adds target mutation sites to the heavy and light chains.
+
+        Args:
+            heavy_mutation_locations (int or list): If an integer is provided, it is treated as the number of mutations to choose sites for in the heavy chain. If a list is provided, it is treated as a list of positions to treat as mutated in the heavy chain.
+            light_mutation_locations (int or list): If an integer is provided, it is treated as the number of mutations to choose sites for in the light chain. If a list is provided, it is treated as a list of positions to treat as mutated in the light chain.
+        """
+        self.heavy.add_target_mutation_sites(heavy_mutation_locations)
+        self.light.add_target_mutation_sites(light_mutation_locations)
+
     @property
     def max_affinity(self):
         """Calculates the maximum affinity of the target pair."""
@@ -175,6 +185,55 @@ class TargetAminoAcid:
         self.all_multipliers.update(self.cdr_multipliers)
         self.all_multipliers.update(self.fwr_multipliers)
         self.all_multipliers.update(conserved_multipliers)
+
+    def add_target_mutation_sites(self, mutation_locations):
+        """Adds target mutation sites to the target amino acid sequence.
+
+        Args:
+            mutation_locations (int or list): if an integer is provided, it is treated as the number of mutations to choose sites for. If a list is provided, it is treated as a list of positions to treat as mutated in the amino acid sequence.
+        """
+        if (isinstance(mutation_locations, int)):
+            if len(self.CDR_POSITIONS) < mutation_locations:
+                raise ValueError("Not enough CDR positions for the number of mutations.")
+            if self.amino_acid_seq == "" or mutation_locations == 0:
+                self.mutation_locations = []
+                return
+            CDR_PROB = 1 # pylint: disable=invalid-name
+            OTHER_PROB = 0 # pylint: disable=invalid-name
+            mutate_probability = []
+            for i, amino_acid in enumerate(self.amino_acid_seq):
+                if amino_acid in ["X", "_"]:
+                    mutate_probability.append(0)
+                elif i in self.conserved_sites:
+                    mutate_probability.append(0)
+                elif i in self.CDR_POSITIONS:
+                    mutate_probability.append(CDR_PROB)
+                else:
+                    mutate_probability.append(OTHER_PROB)
+            mutate_probability = np.array(mutate_probability) / np.sum(mutate_probability)
+            is_nan = np.isnan(mutate_probability)
+            if True in is_nan:
+                print("NaN in mutate probability!")
+                mutate_probability=None
+            mutation_locations = s.RNG.choice(
+                range(len(self.amino_acid_seq)),
+                size=mutation_locations,
+                p=mutate_probability,
+                replace=False)
+        if (isinstance(mutation_locations, list)):
+            if len(mutation_locations) == 0:
+                self.mutation_locations = []
+                return
+            for i in mutation_locations:
+                if i < 0 or i >= len(self.amino_acid_seq):
+                    raise ValueError(f"Mutation location {i} is out of bounds for amino acid sequence of length {len(self.amino_acid_seq)}.")
+            self.mutation_locations = mutation_locations
+        else:
+            raise ValueError("mutation_locations must be an int or a list of ints.")
+
+        multipliers = {x: s.MULTIPLIER for x in self.mutation_locations}
+        self.all_multipliers.update(multipliers)
+    
 
     @property
     def max_affinity(self):

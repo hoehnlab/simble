@@ -31,7 +31,7 @@ from .helper import make_all_plots, make_bar_plot
 from .location import Location, LocationName
 from .settings import s
 from .target import TargetAminoPair
-from .tree import Node, simplify_tree
+from .tree import Node, get_internal_nodes, simplify_tree
 
 logger = logging.getLogger(__package__)
 
@@ -323,33 +323,119 @@ def simulate(clone_id, TARGET_PAIR, gc_start_generation, root, time=0): # pylint
 
     return sampled, pop_data, df
 
+def _internal_node_info(node, descendant_tips, root):
+    """Returns the tree information for one internal node."""
+    return {
+        "node_type": "root" if node is root else "internal",
+        "parent_id": node.parent.name if node.parent is not None else None,
+        "generation": node.generation,
+        "branch_generations": node.time_since_last_split,
+        "n_descendant_tips": len(descendant_tips),
+        "descendant_tips": ";".join(descendant_tips),
+    }
 
-def run_simulation(i, result_dir):
+
+def internal_nodes_as_AIRR(tree, clone_id): # pylint: disable=invalid-name
+    """Returns the true sequences of a tree's internal nodes in AIRR format.
+
+    The ``cell_id`` of each row is the same as the node's name in the Newick
+    trees. Each chain has its own row, as in the sampled-cell AIRR output.
+    ``sample_time`` is empty, because internal nodes are not sampled.
+
+    Args:
+        tree (Node): The root of the tree, usually the simplified tree.
+        clone_id (int): The ID of the clone.
+    Returns:
+        pd.DataFrame: One row for each chain of each internal node.
+    """
+    rows = []
+    for node, descendant_tips in get_internal_nodes(tree):
+        info = _internal_node_info(node, descendant_tips, tree)
+        chain_rows = node.cell.as_AIRR(None)
+        # as_AIRR returns the heavy chain first, then the light chain (if any)
+        branch_mutations = [node.heavy_mutations, node.light_mutations]
+        for row, mutations in zip(chain_rows, branch_mutations):
+            row.update(info)
+            row["branch_mutations"] = mutations
+            rows.append(row)
+    airr = pd.DataFrame(rows)
+    if len(airr) == 0:
+        return airr
+    airr["sequence_id"] = airr["sequence_id"].apply(lambda x: f"{clone_id}_{x}")
+    airr["cell_id"] = airr["cell_id"].apply(lambda x: f"{clone_id}_{x}")
+    airr["clone_id"] = clone_id
+    return airr
+
+
+def internal_nodes_as_fasta(tree):
+    """Returns the true sequences of a tree's internal nodes in FASTA format.
+
+    The record IDs are the same as the ``sequence_id`` in the internal node AIRR
+    output. The headers do not include ``descendant_tips`` (it can be very
+    long); use the AIRR output for it.
+
+    Args:
+        tree (Node): The root of the tree, usually the simplified tree.
+    Returns:
+        str: The FASTA records, one for each chain of each internal node.
+    """
+    records = []
+    for node, descendant_tips in get_internal_nodes(tree):
+        info = _internal_node_info(node, descendant_tips, tree)
+        info.pop("descendant_tips")
+        if info["parent_id"] is None:
+            info["parent_id"] = "NA"
+        chains = [(True, node.heavy_mutations), (False, node.light_mutations)]
+        for heavy, mutations in chains:
+            chain = node.cell.heavy_chain if heavy else node.cell.light_chain
+            if len(chain.nucleotide_seq) == 0:
+                # no light chain (single chain cell)
+                continue
+            records.append(node.cell.as_fasta_helper(
+                None,
+                heavy,
+                name=node.name,
+                extra_fields={**info, "branch_mutations": mutations}
+                ))
+    return "".join(records)
+
+
+# CGJ
+def run_simulation(clone_id, result_dir, naive_row_idx=None, target=None):
     """Runs the simulation for a single iteration.
 
     Args:
-        i (int): The iteration number of the simulation.
+        clone_id (int): The clone id of this simulation.
         result_dir (str): The directory where results will be saved.
+        naive_row_idx (int, optional): If given, the row of the naive pool to
+            use as this clone's starting pair, instead of drawing one by the
+            run's usual naive sampling mode.
+        target (TargetAminoPair, optional): The target shared by every clone in
+            the run. If not given, a target is derived from this clone's own
+            naive sequence.
     Returns:
-        dict: A dictionary containing the results of the simulation, 
+        dict: A dictionary containing the results of the simulation,
             including AIRR data, FASTA sequences, trees, and population data.
     """
     time = 0
-    clone_id = i+1
-    naive = Cell(None, None, created_at=time)
+    naive = Cell(None, None, created_at=time, clone_id=clone_id, naive_row_idx=naive_row_idx)
     root = Node(naive, clone_id=clone_id)
     airr = []
-    TARGET_PAIR = TargetAminoPair( # pylint: disable=invalid-name
-        naive.heavy_chain.get_gapped_sequence(),
-        naive.light_chain.get_gapped_sequence(),
-        naive.heavy_chain.cdr3_length,
-        naive.light_chain.cdr3_length)
-    TARGET_PAIR.mutate(s.TARGET_MUTATIONS_HEAVY, s.TARGET_MUTATIONS_LIGHT)
+    # CGJ
+    if target is not None:
+        TARGET_PAIR = target
+    else:
+        TARGET_PAIR = TargetAminoPair(
+            naive.heavy_chain.get_gapped_sequence(),
+            naive.light_chain.get_gapped_sequence(),
+            naive.heavy_chain.cdr3_length,
+            naive.light_chain.cdr3_length)
+        TARGET_PAIR.mutate(s.TARGET_MUTATIONS_HEAVY, s.TARGET_MUTATIONS_LIGHT)
 
     sampled, pop_data, dev_df = simulate(clone_id, TARGET_PAIR, [root], root)
 
     sampled_ids = [id(x.cell) for x in sampled]
-    fasta_string = "".join([x.cell.as_fasta(x.sampled_time) for x in sampled])
+    fasta_string = "".join([x.cell.as_fasta(x.sampled_time, name=x.name) for x in sampled])
 
     airr = [x for node in sampled for x in node.cell.as_AIRR(node.sampled_time)]
     airr = pd.DataFrame(airr)
@@ -378,6 +464,15 @@ def run_simulation(i, result_dir):
     simplified_tree = simplify_tree(pruned)
     simplified_tree_newick = f'{simplified_tree.write_newick()};'
     simplified_time_tree_newick = f'{simplified_tree.write_newick(time_tree=True)};'
+
+    # the simplified tree and simplified time tree have the same nodes, so one
+    # set of internal nodes agrees with both trees
+    if s.INTERNAL_NODES:
+        internal_airr = internal_nodes_as_AIRR(simplified_tree, clone_id)
+        internal_fasta = internal_nodes_as_fasta(simplified_tree)
+    else:
+        internal_airr = None
+        internal_fasta = None
 
     # TODO (jf): clean up dev code and logging with new tree options
     if s.DEV:
@@ -426,7 +521,9 @@ def run_simulation(i, result_dir):
         "pruned_time_tree": pruned_time_tree, 
         "simplified_tree": simplified_tree_newick,
         "simplified_time_tree": simplified_time_tree_newick,
-        "data": dev_df, 
+        "internal_airr": internal_airr,
+        "internal_fasta": internal_fasta,
+        "data": dev_df,
         "clone_id": clone_id, 
         "pop_data": pop_data,
         "targets": {

@@ -88,6 +88,8 @@ class Settings(Encodable):
         _x_RNG (random.Random): Random number generator instance.
         DEV (bool): Development mode flag.
         FASTA (bool): Whether to output results in FASTA format.
+        INTERNAL_NODES (bool): Whether to output the true sequences of the
+            simplified tree's internal nodes.
         VERBOSE (bool): Verbosity level for logging.
         CDR_DIST (str): Distribution type for CDR mutations.
         CDR_VAR (float): Variance for CDR mutations.
@@ -130,6 +132,7 @@ class Settings(Encodable):
         self._x_RNG = None # pylint: disable=protected-access
         self.DEV = False
         self.FASTA = False
+        self.INTERNAL_NODES = False
         self.VERBOSE = False
         self.CDR_DIST = "exponential"
         self.CDR_VAR = 0.995
@@ -137,6 +140,17 @@ class Settings(Encodable):
         self.FWR_VAR = 0.98
         self.TIME_SWITCH = 50
         self.GENERATIONS_PER_DAY = 0.5
+        self.NAIVE_FILE = None
+        self.USER_FIELDS_TO_KEEP = []
+        # how each clone's founder naive pair is chosen: "random" (independent
+        # draws, with replacement), "ordered" (by clone id, modulo the naive
+        # pool size), or "unique" (drawn once per run, without replacement, so
+        # no two clones share a naive pair)
+        self.NAIVE_SELECTION = "random"
+        # CGJ
+        # a user-supplied target shared by every clone in the run; empty when the
+        # target is derived per-clone from that clone's own naive sequence
+        self.TARGET = {}
         self.MEMORY_SAVE = False
         self.KEEP_FULL_TREE = False
         self.QUIET = False

@@ -111,6 +111,148 @@ pip install <requirement>
 python3 -m simble -flags
 ```
 
+## Using your own naive sequences
+
+To use your own naive data, you can use the `--naive` argument:
+
+```sh
+simble --naive <naive_file.csv> 
+```
+
+Additionally, you may wish to keep columns from your naive dataset:
+
+```sh
+simble --naive <naive_file.csv> --keep-cols cell_barcode cell_label
+```
+
+These columns may not have the same name as any required fields, and additionally
+may not be called any of the following:
+-sequence_id
+-sequence
+-sequence_alignment
+-germline_alignment
+-location
+-sample_time
+-junction
+-junction_aa
+-junction_length
+
+The `--naive-sampling` argument controls how each clone's starting pair is
+chosen from the naive data:
+
+- `ordered` (the default whenever `--naive` is given): each clone uses the
+  naive pair at row clone_id modulo (rows in naive dataset). For example, if
+  the naive dataset has 10 entries, clone 6 will use the pair of sequences in
+  the 6th row, and clone 13 will use the 3rd row.
+- `random`: each clone draws an independent, random starting pair from the
+  table. The same pair can be reused by more than one clone. This is always
+  the mode used when `--naive` is not given.
+- `unique`: one starting pair is drawn per clone, without replacement, so no
+  two clones in the run share a naive pair. This requires at least as many
+  naive pairs as clones (`--number`/`-n`).
+
+```sh
+simble --naive <naive_file.csv> --naive-sampling random
+simble --naive <naive_file.csv> --naive-sampling unique
+```
+
+If you would like to specify a clone_id to start at:
+```sh
+simble --naive <naive_file.csv> --clone-id 4
+```
+
+
+Your naive data should have the following AIRR columns for both heavy and 
+light chains (prefixed with 'heavy_' and 'light_' respectively):
+
+-sequence
+-rev_comp
+-productive
+-v_call
+-d_call
+-j_call
+-sequence_alignment
+-junction
+-junction_aa
+-v_cigar
+-d_cigar
+-j_cigar
+-np1_length
+-v_germline_start
+-v_germline_end
+-d_germline_start
+-d_germline_end
+-j_germline_start
+-j_germline_end
+-germline_alignment_d_mask
+-locus
+-cdr3
+
+For convenience, once `simble` is installed, you can also run the command 
+`process_naive` to compile the correct csv from a heavy AIRR tsv and a light AIRR tsv:
+
+```sh
+process_naive -o <outfile> --heavy <heavy_airr.tsv> --light <light_airr.tsv> --join <column_to_join_on>
+```
+
+For example, to join on "cell_id":
+```sh
+process_naive -o my_naive_data.csv --heavy IGH_naive_airr.tsv --light IGL_IGK_naive_airr.tsv -j cell_id
+```
+
+To keep columns "cell_barcode" and "cell_label" from the heavy table:
+```sh
+process_naive -o my_naive_data.csv --heavy IGH_naive_airr.tsv --light IGL_IGK_naive_airr.tsv -j cell_id --keep-cols cell_barcode cell_label
+```
+
+Or to keep columns "cell_barcode" and "cell_label" from the light table:
+```sh
+process_naive -o my_naive_data.csv --heavy IGH_naive_airr.tsv --light IGL_IGK_naive_airr.tsv -j cell_id --keep-cols cell_barcode cell_label --keep-from light
+```
+
+## Internal node (ancestral) sequences
+
+simble records the true sequence of every cell in the lineage. To also write the
+true sequences of the internal nodes of the simplified trees, use the
+`--internal-nodes` argument:
+
+```sh
+simble --internal-nodes [other args]
+```
+
+This writes `all_internal_nodes_airr.tsv`. With `--fasta`, it also writes
+`all_internal_nodes.fasta`. These files are not written by default.
+
+These sequences are not reconstructions. They are the known (true) sequences
+from the simulation, so you can use them to test ancestral sequence
+reconstruction (ASR) methods.
+
+The internal nodes are the root (the naive cell) and each node where the
+lineage splits. The simplified tree and the simplified time tree have the same
+nodes, so one file agrees with both trees. The `cell_id` of each row is the same
+as the node's name in the Newick trees. Each chain has its own row, as in
+`all_samples_airr.tsv`. The file has these columns in addition to the usual
+AIRR columns:
+
+| column | description |
+| ------ | ----------- |
+| `node_type` | `root` or `internal` |
+| `parent_id` | `cell_id` of the parent node (empty for the root) |
+| `generation` | generation of the node (its position in the time tree) |
+| `branch_generations` | branch length to the parent in the time tree |
+| `branch_mutations` | mutations in this chain on the branch to the parent (the genetic distance tree's branch length is the sum for both chains) |
+| `n_descendant_tips` | number of sampled cells below this node |
+| `descendant_tips` | `cell_id`s of the sampled cells below this node, separated by `;` |
+
+`sample_time` is empty, because internal nodes are not sampled.
+
+In `all_samples.fasta` and `all_internal_nodes.fasta`, each record ID is the same
+as the `sequence_id` in the AIRR output (`<cell_id>_heavy` or `<cell_id>_light`).
+The FASTA headers do not include `descendant_tips`.
+
+A reconstructed tree usually has a different topology from the true tree. To
+compare a reconstructed node with a true node, match them by the set of sampled
+cells below each node (`descendant_tips`).
 
 ## All arguments
 
@@ -281,6 +423,12 @@ Available arguments:
         <td>if present, also write a fasta file</td>
     </tr>
     <tr>
+        <td>--internal-nodes</td>
+        <td></td>
+        <td></td>
+        <td>if present, also write the true sequences of the simplified tree's internal nodes</td>
+    </tr>
+    <tr>
         <td>--config</td>
         <td></td>
         <td></td>
@@ -297,6 +445,30 @@ Available arguments:
         <td></td>
         <td></td>
         <td>an RNG seed to reproduce specific simulations</td>
+    </tr>
+    <tr>
+        <td>--clone_id</td>
+        <td></td>
+        <td>1</td>
+        <td>specify a starting clone id (1-indexed)</td>
+    </tr>
+    <tr>
+        <td>--naive</td>
+        <td></td>
+        <td></td>
+        <td>path to input naive sequences</td>
+    </tr>
+    <tr>
+        <td>--keep-cols</td>
+        <td></td>
+        <td></td>
+        <td>additional columns from the naive data to keep</td>
+    </tr>
+    <tr>
+        <td>--naive-sampling</td>
+        <td></td>
+        <td>ordered if --naive is given, else random</td>
+        <td>how to pick each clone's naive pair: random, ordered, or unique</td>
     </tr>
 </table>
 
