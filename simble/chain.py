@@ -29,6 +29,19 @@ from .settings import s
 
 logger = logging.getLogger(__package__)
 
+_warned_no_mutable_positions = False # pylint: disable=invalid-name
+
+def _warn_no_mutable_positions():
+    """Warns once for each process that a chain had no position that can mutate."""
+    global _warned_no_mutable_positions # pylint: disable=global-statement
+    if not _warned_no_mutable_positions:
+        logger.warning((
+            "a chain has no position that can mutate (every 5-mer in it has a "
+            "mutability of 0), so it does not mutate. This message is shown only once."
+            ))
+        _warned_no_mutable_positions = True
+
+
 class Chain:
     """
     Represents a chain of the BCR.
@@ -83,8 +96,11 @@ class Chain:
 
         if nucleotide_seq is None:
             raise ValueError("nucleotide_seq must be provided")
-        if nucleotide_seq == "" and self.__class__ != EmptyChain:
-            self.__class__ = EmptyChain
+        if nucleotide_seq == "" and not isinstance(self, EmptyChain):
+            raise ValueError((
+                "nucleotide_seq is empty. To make a cell with no light chain, "
+                "give the cell a light chain of None (it then uses EmptyChain)"
+                ))
 
         self.nucleotide_seq = nucleotide_seq
         self.nucleotide_gaps = self._get_gaps(gapped_seq, nucleotide_gaps)
@@ -238,9 +254,18 @@ class Chain:
         if n == 0:
             return n
 
-        padded_seq = "NN" + self.nucleotide_seq + "NN"
-        for _ in range(n):
-            probability_map = np.array(self.mutability_map) / np.sum(self.mutability_map)
+        for done in range(n):
+            # the context must come from the current sequence, because an
+            # earlier mutation in this loop can change it
+            padded_seq = "NN" + self.nucleotide_seq + "NN"
+            total_mutability = np.sum(self.mutability_map)
+            if total_mutability <= 0:
+                # no position can mutate (for example, a model in which most
+                # 5-mers have a mutability of 0), so stop here
+                _warn_no_mutable_positions()
+                n = done
+                break
+            probability_map = np.array(self.mutability_map) / total_mutability
             mutated_position = s.RNG.choice(
                 range(len(self.nucleotide_seq)),
                 size=1,

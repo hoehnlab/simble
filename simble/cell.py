@@ -57,8 +57,12 @@ class Cell:
             pair = get_start_pair(clone_id, naive_row_idx=naive_row_idx)
             heavy_chain = HeavyChain(**pair.heavy.chain._asdict())
             heavy_chain.airr_constants = pair.heavy.constants
-            light_chain = LightChain(**pair.light.chain._asdict())
-            light_chain.airr_constants = pair.light.constants
+            if pair.light is None:
+                # a single chain or uniform simulation: no light chain
+                light_chain = None
+            else:
+                light_chain = LightChain(**pair.light.chain._asdict())
+                light_chain.airr_constants = pair.light.constants
             self.user_constants = pair.user_constants
 
         if light_chain is None:

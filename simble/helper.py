@@ -25,6 +25,7 @@ from collections import namedtuple
 import matplotlib.pyplot as plt
 import pandas as pd
 
+from . import models
 from .settings import s
 from .constants import AIRR_REQUIRED_FIELDS, SIMBLE_REQUIRED_FIELDS, AIRR_FIELDS_TO_GENERATE
 
@@ -80,10 +81,12 @@ def get_target_signature(row):
     Args:
         row (pd.Series): A row of a table using simble's internal column names.
     Returns:
-        dict: The locus and the v, junction and alignment lengths of both chains.
+        dict: The locus and the v, junction and alignment lengths of each
+            chain in the simulation (only the heavy chain in a single chain
+            simulation).
     """
     signature = {}
-    for chain in ["heavy", "light"]:
+    for chain in s.ACTIVE_CHAINS:
         signature[f"{chain}_locus"] = row[f"{chain}_locus"]
         signature[f"{chain}_v"] = int(row[f"{chain}_v_germline_length"])
         signature[f"{chain}_junction"] = len(row[f"{chain}_junction"])
@@ -105,7 +108,8 @@ def filter_naive_to_target(naive):
     locus and agree on the length of the v region and the junction. The whole
     alignment only has to agree to within a codon; the shortfall is padded onto
     the target by pad_target_to_pool. Uniform simulations do not draw from the
-    naive pool, so they are left alone.
+    naive pool, so they are left alone. In a single chain simulation, only the
+    heavy chain has to match, because the light chain is not used.
 
     Args:
         naive (pd.DataFrame): The full naive pool.
@@ -116,7 +120,7 @@ def filter_naive_to_target(naive):
         return naive
     signature = s.TARGET["signature"]
     compatible = pd.Series(True, index=naive.index)
-    for chain in ["heavy", "light"]:
+    for chain in s.ACTIVE_CHAINS:
         if f"{chain}_v_germline_length" not in naive.columns:
             raise ValueError((
                 f"{chain}_v_germline_length is missing from the naive input. It is "
@@ -150,7 +154,7 @@ def pad_target_to_pool(naive):
     if not s.TARGET or s.UNIFORM or naive.empty:
         return
     target = dict(s.TARGET)
-    for chain in ["heavy", "light"]:
+    for chain in s.ACTIVE_CHAINS:
         aligned = target[f"{chain}_aligned"]
         longest = int(naive[f"{chain}_aligned"].str.len().max())
         if longest > len(aligned):
@@ -215,6 +219,91 @@ NAIVE_TOTAL_ROWS = NAIVE_ROWS
 HEAVY_SUBSTITUTION_TABLE = read_sf5_table(get_data("hh_sf5_substitution.csv"))
 LIGHT_SUBSTITUTION_TABLE = read_sf5_table(get_data("hkl_sf5_substitution.csv"))
 
+# the bundled S5F tables, kept so that the tables can go back to them after a
+# run that used model files
+BUNDLED_MODEL_TABLES = {
+    "heavy": (HEAVY_MUTABILITY_TABLE, HEAVY_SUBSTITUTION_TABLE),
+    "light": (LIGHT_MUTABILITY_TABLE, LIGHT_SUBSTITUTION_TABLE),
+    }
+# model tables made from files, by chain and file paths and modification times,
+# so that each worker reads the files only once
+_MODEL_TABLE_CACHE = {}
+
+
+def get_model_files(chain):
+    """Returns the (mutability, substitution) model file paths for a chain.
+
+    Args:
+        chain (str): "heavy" or "light".
+    Returns:
+        tuple: The two paths. A path is None if the bundled S5F file is used.
+    """
+    if chain == "heavy":
+        return s.MUTABILITY_HEAVY_FILE, s.SUBSTITUTION_HEAVY_FILE
+    return s.MUTABILITY_LIGHT_FILE, s.SUBSTITUTION_LIGHT_FILE
+
+
+def build_model_tables(chain):
+    """Builds the mutability and substitution tables for a chain from the settings.
+
+    If no model files are given for the chain, these are the bundled S5F tables.
+    If only one file is given, the other table is the bundled S5F table. The
+    files are validated together (see models.validate_model).
+
+    Args:
+        chain (str): "heavy" or "light".
+    Returns:
+        tuple: The mutability table and the substitution table, in the bundled
+            file format.
+    Raises:
+        models.ModelFileError: If a file is not valid.
+    """
+    mutability_file, substitution_file = get_model_files(chain)
+    if mutability_file is None and substitution_file is None:
+        return BUNDLED_MODEL_TABLES[chain]
+
+    def _version(path):
+        return None if path is None else (path, os.path.getmtime(path))
+    key = (chain, _version(mutability_file), _version(substitution_file))
+    if key in _MODEL_TABLE_CACHE:
+        return _MODEL_TABLE_CACHE[key]
+
+    bundled_mutability, bundled_substitution = models.bundled_as_dicts(
+        *BUNDLED_MODEL_TABLES[chain]
+        )
+    if mutability_file is not None:
+        mutability = models.read_mutability(mutability_file)
+    else:
+        mutability = bundled_mutability
+    if substitution_file is not None:
+        substitution = models.read_substitution(substitution_file)
+    else:
+        substitution = bundled_substitution
+    source = (
+        f"{chain} chain model (mutability: "
+        f"{mutability_file or 'bundled S5F'}, substitution: "
+        f"{substitution_file or 'bundled S5F'})"
+        )
+    models.validate_model(mutability, substitution, source)
+    tables = (models.mutability_to_table(mutability),
+              models.substitution_to_table(substitution))
+    _MODEL_TABLE_CACHE[key] = tables
+    return tables
+
+
+def update_model_tables():
+    """Sets the mutability and substitution tables from the settings.
+
+    The light chain tables are only built from files in a paired simulation.
+    """
+    global HEAVY_MUTABILITY_TABLE, HEAVY_SUBSTITUTION_TABLE # pylint: disable=global-statement
+    global LIGHT_MUTABILITY_TABLE, LIGHT_SUBSTITUTION_TABLE # pylint: disable=global-statement
+    HEAVY_MUTABILITY_TABLE, HEAVY_SUBSTITUTION_TABLE = build_model_tables("heavy")
+    if s.SINGLE_CHAIN or s.UNIFORM:
+        LIGHT_MUTABILITY_TABLE, LIGHT_SUBSTITUTION_TABLE = BUNDLED_MODEL_TABLES["light"]
+    else:
+        LIGHT_MUTABILITY_TABLE, LIGHT_SUBSTITUTION_TABLE = build_model_tables("light")
+
 StartChain = namedtuple(
     "StartChain", 
     ["nucleotide_seq", "gapped_seq", "cdr3_aa_length", "junction"]
@@ -222,10 +311,11 @@ StartChain = namedtuple(
 StartConstants = namedtuple("StartConstants", ["chain", "constants"])
 
 def update_helper_tables():
-    global NAIVE 
+    global NAIVE
     global NAIVE_ROWS
     # CGJ
     global NAIVE_TOTAL_ROWS
+    update_model_tables()
     NAIVE = get_naive_table()
     # CGJ
     NAIVE_TOTAL_ROWS = len(NAIVE.index)
@@ -284,6 +374,12 @@ def codon_to_amino_acid(codon):
     return table[codon]
 
 
+# TODO (jf): get_substitution_probability and get_mutability_of_kmer look up each
+# 5-mer with a pandas .loc filter, which reads the whole table for each call.
+# Dict lookups (5-mer -> value) would be much faster and would not change the
+# values, so seeded results would stay the same. The model tables are already
+# built as dicts in build_model_tables (see models.py), so the change is to keep
+# those dicts (and dicts of the bundled tables) and look up in them here.
 def get_substitution_probability(kmer, heavy=True):
     """Gets the substitution probabilities for a given kmer.
 
@@ -389,7 +485,8 @@ def get_start_pair(clone_id=None, naive_row_idx=None):
             of drawing one at random or by clone id. Ignored in uniform mode.
     Returns:
         StartPair: A named tuple containing the heavy and light chains and
-            any user-specified constants.
+            any user-specified constants. The light chain is None if each cell
+            has only a heavy chain (a single chain or uniform simulation).
     """
     StartPair = namedtuple("RawStartPair", ["heavy", "light", "user_constants"])
     if s.UNIFORM:
@@ -405,15 +502,15 @@ def get_start_pair(clone_id=None, naive_row_idx=None):
             0,
             ""
         )
-        empty = StartConstants(StartChain("", "", 0, ""), {})
         start_info = StartConstants(start_input, {"germline_alignment": sequence})
-        return StartPair(start_info, empty, {})
+        return StartPair(start_info, None, {})
 
     row = select_naive_row(clone_id, naive_row_idx)
     heavy = _format_start_chain(row, "heavy")
-    light = _format_start_chain(row, "light")
+    light = None if s.SINGLE_CHAIN else _format_start_chain(row, "light")
     user_constants = {x: row[x] for x in s.USER_FIELDS_TO_KEEP}
-    if len(heavy.chain.gapped_seq) < 312 or len(light.chain.gapped_seq) < 312:
+    chains = [heavy] if light is None else [heavy, light]
+    if any(len(x.chain.gapped_seq) < 312 for x in chains):
         logger.warning("aligned sequence length is less than 312")
     return StartPair(heavy, light, user_constants)
 

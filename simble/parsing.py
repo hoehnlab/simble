@@ -23,7 +23,7 @@ import os
 import pandas as pd
 
 # CGJ
-from . import helper
+from . import helper, models
 from .data.process_naive import create_naive_table
 from .helper import (get_target_signature, normalize_input_columns, read_input_table,
                      update_helper_tables)
@@ -219,6 +219,56 @@ def get_parser():
                        dest="uniform",
                        help="use a uniform mutation and substitution model",
                        action="store_true")
+    model.add_argument("--single-chain",
+                       dest="single_chain",
+                       help=(
+                           "simulate only the heavy chain of each naive pair (no light "
+                           "chain). The mutation model and selection are the same as "
+                           "in a paired simulation"
+                           ),
+                       action="store_true")
+    model.add_argument("--mutability",
+                       dest="mutability",
+                       help=(
+                           "path to a 5-mer mutability file to use for both chains "
+                           "instead of the bundled S5F file"
+                           ),
+                       metavar="FILE",
+                       type=str,
+                       default=None)
+    model.add_argument("--substitution",
+                       dest="substitution",
+                       help=(
+                           "path to a 5-mer substitution file to use for both chains "
+                           "instead of the bundled S5F file"
+                           ),
+                       metavar="FILE",
+                       type=str,
+                       default=None)
+    model.add_argument("--mutability-heavy",
+                       dest="mutability_heavy",
+                       help="path to a 5-mer mutability file for the heavy chain",
+                       metavar="FILE",
+                       type=str,
+                       default=None)
+    model.add_argument("--substitution-heavy",
+                       dest="substitution_heavy",
+                       help="path to a 5-mer substitution file for the heavy chain",
+                       metavar="FILE",
+                       type=str,
+                       default=None)
+    model.add_argument("--mutability-light",
+                       dest="mutability_light",
+                       help="path to a 5-mer mutability file for the light chain",
+                       metavar="FILE",
+                       type=str,
+                       default=None)
+    model.add_argument("--substitution-light",
+                       dest="substitution_light",
+                       help="path to a 5-mer substitution file for the light chain",
+                       metavar="FILE",
+                       type=str,
+                       default=None)
     model.add_argument("--sequence-length",
                        dest="sequence_length",
                        help="length of the sequence to simulate if uniform (default: 370)",
@@ -228,6 +278,17 @@ def get_parser():
                        dest="antigen",
                        help="amount of antigen",
                        metavar="A",
+                       default=None,
+                       type=int)
+    model.add_argument("--max-children",
+                       dest="max_children",
+                       help=(
+                           "maximum number of children that one GC cell can have in "
+                           "one generation (default: 100). This also sets the "
+                           "number_of_cells_with_N_children columns in "
+                           "population_data.csv"
+                           ),
+                       metavar="N",
                        default=None,
                        type=int)
     model.add_argument("-m", "--multiplier",
@@ -320,20 +381,27 @@ def validate_samples(sample_info):
 
 # CGJ
 def validate_required_columns(columns, source):
-    """Checks that both chains of an input table have every field simble needs.
+    """Checks that each chain of an input table has every field simble needs.
+
+    In a single chain simulation, only the heavy chain fields are needed, so
+    the table can have heavy chain columns only.
 
     Args:
         columns (list): The columns of the input table.
         source (str): How to refer to the table in an error message.
     Raises:
-        ValueError: If a required field is missing for either chain.
+        ValueError: If a required field is missing for a chain in the simulation.
     """
-    for chain in ["heavy", "light"]:
+    for chain in s.ACTIVE_CHAINS:
         for col in SIMBLE_REQUIRED_FIELDS:
             if f"{chain}_{col}" not in columns:
-                raise ValueError(
-                    f"{chain}_{col} is missing from the {source}. This is a required field"
-                    )
+                message = f"{chain}_{col} is missing from the {source}. This is a required field"
+                if chain == "light" and not any(x.startswith("light_") for x in columns):
+                    message += (
+                        ". The table has no light chain columns; to simulate only "
+                        "the heavy chain, use --single-chain"
+                        )
+                raise ValueError(message)
 
 
 def validate_and_process_naive_input(args, warnings):
@@ -408,29 +476,50 @@ def resolve_naive_sampling(args, warnings):
     _update_setting("NAIVE_SELECTION", sampling)
 
 # CGJ
-def read_target_table(args):
-    """Reads the target, given either as one paired table or as two AIRR tsvs.
+def read_target_table(args, warnings=None):
+    """Reads the target, given either as one table or as AIRR tsvs.
+
+    In a single chain simulation, --target-heavy can be given without
+    --target-light, and --target-light is ignored.
 
     Args:
         args (argparse.Namespace): The parsed command line arguments.
+        warnings (list, optional): The list to append warnings to.
     Returns:
         pd.DataFrame: The target, using simble's internal column names.
     Raises:
         ValueError: If the target arguments are combined incorrectly.
         FileNotFoundError: If a target file cannot be found.
     """
+    if warnings is None:
+        warnings = []
     if args.target and (args.target_heavy or args.target_light):
         raise ValueError(
             "specify the target either with --target or with --target-heavy and "
             "--target-light, not both"
             )
-    if bool(args.target_heavy) != bool(args.target_light):
-        raise ValueError("--target-heavy and --target-light must be given together")
-
     if args.target:
         if not os.path.exists(args.target):
             raise FileNotFoundError(f"{args.target} cannot be found")
         return read_input_table(args.target)
+
+    if s.SINGLE_CHAIN:
+        if not args.target_heavy:
+            raise ValueError("--target-light needs --target-heavy")
+        if args.target_light:
+            warnings.append((
+                "The cells have no light chain in this simulation; ignoring "
+                "--target-light."
+                ))
+        if not os.path.exists(args.target_heavy):
+            raise FileNotFoundError(f"{args.target_heavy} cannot be found")
+        return create_naive_table(args.target_heavy, None, args.target_join)
+
+    if bool(args.target_heavy) != bool(args.target_light):
+        message = "--target-heavy and --target-light must be given together"
+        if args.target_heavy:
+            message += "; to use only a heavy chain target, use --single-chain"
+        raise ValueError(message)
 
     for filename in [args.target_heavy, args.target_light]:
         if not os.path.exists(filename):
@@ -454,7 +543,7 @@ def validate_and_process_target_input(args, warnings):
     if not (args.target or args.target_heavy or args.target_light):
         return
 
-    target = read_target_table(args)
+    target = read_target_table(args, warnings)
     if len(target.index) == 0:
         raise ValueError("no target sequence found in the target input")
     if len(target.index) > 1:
@@ -463,7 +552,7 @@ def validate_and_process_target_input(args, warnings):
             "one target. Using the first row."
             ))
     validate_required_columns(list(target.columns), "target input")
-    for chain in ["heavy", "light"]:
+    for chain in s.ACTIVE_CHAINS:
         if f"{chain}_v_germline_length" not in target.columns:
             raise ValueError((
                 f"{chain}_v_germline_length is missing from the target input. It is "
@@ -472,11 +561,18 @@ def validate_and_process_target_input(args, warnings):
 
     row = normalize_input_columns(target).iloc[0]
     signature = get_target_signature(row)
+    if s.SINGLE_CHAIN:
+        # the cells have no light chain, so the target has no light chain
+        light_aligned = ""
+        light_cdr3_aa_length = 0
+    else:
+        light_aligned = row["light_aligned"]
+        light_cdr3_aa_length = len(row["light_cdr3"]) // 3
     _update_setting("TARGET", {
         "heavy_aligned": row["heavy_aligned"],
-        "light_aligned": row["light_aligned"],
+        "light_aligned": light_aligned,
         "heavy_cdr3_aa_length": len(row["heavy_cdr3"]) // 3,
-        "light_cdr3_aa_length": len(row["light_cdr3"]) // 3,
+        "light_cdr3_aa_length": light_cdr3_aa_length,
         "signature": signature,
         })
 
@@ -528,6 +624,145 @@ def validate_naive_pool(args, warnings):
             f"cannot sample {args.n} unique naive pairs without replacement from "
             f"a pool of only {compatible} naive sequences"
             ))
+
+
+def validate_and_process_max_children(max_children, warnings):
+    """Validates the maximum number of children and records it in the settings.
+
+    Args:
+        max_children (int or None): The value from the command line. If None,
+            the value in the settings (from the default or a config file) is
+            validated.
+        warnings (list): The list to append warnings to.
+    Raises:
+        ValueError: If the value is not an integer greater than or equal to 1.
+    """
+    value = s.MAX_CHILDREN if max_children is None else max_children
+    if isinstance(value, float) and value.is_integer():
+        value = int(value)
+    if isinstance(value, bool) or not isinstance(value, int) or value < 1:
+        raise ValueError(
+            f"{value} is not a valid maximum number of children. It must be an "
+            "integer greater than or equal to 1"
+            )
+    gc_max_population = s.LOCATIONS[0].max_population
+    if value > gc_max_population:
+        warnings.append((
+            f"the maximum number of children ({value}) is greater than the GC "
+            f"maximum population ({gc_max_population}). A cell cannot get more "
+            "antigen than the maximum population, so the limit has no effect"
+            ))
+    s.MAX_CHILDREN = value
+
+
+VALID_CHAINS = ["paired", "heavy"]
+
+def validate_and_process_chains(args, warnings):
+    """Validates which chains each cell has and records it in the settings.
+
+    Run this after the light chain settings (--light-shm and
+    --target-mutations-light) are recorded, so that they can be ignored in a
+    single chain simulation.
+
+    Args:
+        args (argparse.Namespace): The parsed command line arguments.
+        warnings (list): The list to append warnings to.
+    Raises:
+        ValueError: If the CHAINS setting (for example, from a config file) is
+            not valid.
+    """
+    if args.single_chain:
+        s.CHAINS = "heavy"
+    if s.CHAINS not in VALID_CHAINS:
+        raise ValueError(
+            f"{s.CHAINS} is not a valid value for CHAINS. Use one of: "
+            + ", ".join(VALID_CHAINS)
+            )
+    if s.UNIFORM:
+        # uniform simulations keep their own light chain handling, unchanged,
+        # so CHAINS stays at its default
+        if s.CHAINS != "paired":
+            warnings.append((
+                "A uniform simulation always has only a heavy chain; ignoring "
+                "--single-chain (or CHAINS)."
+                ))
+            s.CHAINS = "paired"
+        return
+    if not s.SINGLE_CHAIN:
+        return
+    if args.light_shm_per_site is not None:
+        warnings.append(
+            "The cells have no light chain in this simulation; ignoring --light-shm."
+            )
+    if args.target_mutations_light is not None:
+        warnings.append((
+            "The cells have no light chain in this simulation; ignoring "
+            "--target-mutations-light."
+            ))
+    # the target has no light chain, so there are no light chain target mutations
+    s.TARGET_MUTATIONS_LIGHT = 0
+
+
+MODEL_FILE_SETTINGS = {
+    ("mutability", "heavy"): "MUTABILITY_HEAVY_FILE",
+    ("substitution", "heavy"): "SUBSTITUTION_HEAVY_FILE",
+    ("mutability", "light"): "MUTABILITY_LIGHT_FILE",
+    ("substitution", "light"): "SUBSTITUTION_LIGHT_FILE",
+}
+
+def validate_and_process_model_files(args, warnings):
+    """Validates the 5-mer model files and records them in the settings.
+
+    --mutability and --substitution set the file for both chains. A file for one
+    chain (for example --mutability-heavy) is used for that chain instead. A
+    chain without a file uses the bundled S5F file. The files are read and
+    checked here, so that a bad file stops the run before it starts.
+
+    Run this after validate_and_process_chains.
+
+    Args:
+        args (argparse.Namespace): The parsed command line arguments.
+        warnings (list): The list to append warnings to.
+    Raises:
+        ValueError: If the files cannot be used.
+    """
+    for (kind, chain), setting in MODEL_FILE_SETTINGS.items():
+        specific = getattr(args, f"{kind}_{chain}")
+        shared = getattr(args, kind)
+        if specific is not None and shared is not None:
+            warnings.append((
+                f"Both --{kind} and --{kind}-{chain} were given; using "
+                f"--{kind}-{chain} for the {chain} chain."
+                ))
+        _update_setting(setting, specific if specific is not None else shared)
+
+    used_chains = ["heavy"] if s.SINGLE_CHAIN else ["heavy", "light"]
+    given = {
+        setting: getattr(s, setting)
+        for (_, chain), setting in MODEL_FILE_SETTINGS.items()
+        if chain in used_chains and getattr(s, setting)
+        }
+    if s.SINGLE_CHAIN and (args.mutability_light or args.substitution_light):
+        warnings.append((
+            "The cells have no light chain in this simulation; ignoring "
+            "--mutability-light and --substitution-light."
+            ))
+    if not given:
+        return
+    if s.UNIFORM:
+        raise ValueError((
+            "5-mer model files cannot be used with --uniform, because a uniform "
+            "simulation uses a uniform mutation and substitution model"
+            ))
+    for path in given.values():
+        if not os.path.exists(path):
+            raise FileNotFoundError(f"{path} cannot be found")
+    # read and check the files now, so that a bad file stops the run before it
+    # starts (each worker reads them again in update_helper_tables)
+    try:
+        helper.update_model_tables()
+    except models.ModelFileError as e:
+        raise ValueError(str(e)) from e
 
 
 def process_distribution_args(distribution, var, region):
@@ -608,6 +843,8 @@ def validate_and_process_args(args):
     _update_setting("DEV", args.dev)
     _update_setting("FASTA", args.fasta)
     _update_setting("INTERNAL_NODES", args.internal_nodes)
+    validate_and_process_chains(args, warnings)
+    validate_and_process_model_files(args, warnings)
 
     process_distribution_args(args.cdr_dist, args.cdr_var, "cdr")
     process_distribution_args(args.fwr_dist, args.fwr_var, "fwr")
@@ -617,6 +854,7 @@ def validate_and_process_args(args):
     _update_setting("KEEP_FULL_TREE", args.keep_full_tree)
     _update_setting("QUIET", args.quiet)
     _update_setting("SEQUENCE_LENGTH", args.sequence_length)
+    validate_and_process_max_children(args.max_children, warnings)
 
     if args.sample_size:
         s.LOCATIONS[0].sample_size = args.sample_size

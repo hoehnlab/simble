@@ -54,6 +54,17 @@ To run a neutral-selection BCR simulation (using naive BCRs, heavy and light cha
 simble --neutral [other args]
 ```
 
+To run a single chain simulation (only the heavy chain of each naive pair, with the usual S5F mutation/substitution model and selection):
+```sh
+simble --single-chain [other args]
+```
+In a single chain simulation, the output has only heavy chain rows, and
+`--light-shm` and `--target-mutations-light` are ignored. If you give a
+`--target`, only its heavy chain is used, and only the heavy chain has to match
+for a naive pair to be compatible with the target. The naive and target inputs
+can be paired tables or heavy chain only tables (see
+[Using your own naive sequences](#using-your-own-naive-sequences)).
+
 To run a uniformly neutral simulation (no selection, randomly generated starting nucleotide sequence, and uniform mutations/substitutions):
 ```sh
 simble --uniform [other args]
@@ -188,6 +199,10 @@ light chains (prefixed with 'heavy_' and 'light_' respectively):
 -locus
 -cdr3
 
+For a single chain simulation (`--single-chain`), the naive data can have only
+the heavy chain columns (prefixed with 'heavy_'). A paired table also works;
+its light chain columns are not used.
+
 For convenience, once `simble` is installed, you can also run the command 
 `process_naive` to compile the correct csv from a heavy AIRR tsv and a light AIRR tsv:
 
@@ -208,6 +223,67 @@ process_naive -o my_naive_data.csv --heavy IGH_naive_airr.tsv --light IGL_IGK_na
 Or to keep columns "cell_barcode" and "cell_label" from the light table:
 ```sh
 process_naive -o my_naive_data.csv --heavy IGH_naive_airr.tsv --light IGL_IGK_naive_airr.tsv -j cell_id --keep-cols cell_barcode cell_label --keep-from light
+```
+
+To make a heavy chain only table for a single chain simulation, do not give
+`--light`. The join column is kept if it is in the heavy table, but it is not
+required:
+```sh
+process_naive -o my_heavy_naive_data.csv --heavy IGH_naive_airr.tsv
+simble --single-chain --naive my_heavy_naive_data.csv [other args]
+```
+
+In a single chain simulation, a target can also be given as only a heavy chain
+AIRR tsv, with `--target-heavy` and no `--target-light`:
+```sh
+simble --single-chain --naive my_heavy_naive_data.csv --target-heavy IGH_target_airr.tsv
+```
+
+## Using your own 5-mer mutation model
+
+By default, simble uses the S5F mutability and substitution models (see
+`simble/data/README.md`). To use your own 5-mer model for both chains:
+
+```sh
+simble --mutability my_mutability.csv --substitution my_substitution.csv [other args]
+```
+
+To give a model for one chain only, use `--mutability-heavy`,
+`--substitution-heavy`, `--mutability-light` or `--substitution-light`. A file
+for one chain is used instead of `--mutability` or `--substitution` for that
+chain. A chain (or a file) that you do not give uses the bundled S5F file, so
+you can, for example, give only a mutability file. In a single chain
+simulation, the light chain files are not used. Model files cannot be used with
+`--uniform`.
+
+The files have the same format as the bundled files (comma separated, or tab
+separated if the name ends in `.tsv`):
+
+- mutability file: columns `Fivemer` and `Mutability`. It must have all 1024
+  5-mers of A, C, G and T. Only the relative values matter: the number of
+  mutations comes from `--heavy-shm` and `--light-shm`.
+- substitution file: columns `Fivemer`, `A`, `C`, `G` and `T`. Each row gives
+  the probability that the center nucleotide of the 5-mer becomes each
+  nucleotide. For each 5-mer with a mutability greater than 0, the row must sum
+  to 1, and the probability for the center nucleotide to stay the same must be
+  0 (an empty value is 0). Rows for 5-mers with a mutability of 0 are not used,
+  so they can be left out.
+
+Rows for 5-mers with N (used at the ends of a sequence) are optional. If they
+are left out, simble makes them the same way as in the bundled files: a 5-mer
+with N at an edge position gets the mean of the 5-mers that replace each N with
+A, C, G or T. simble checks the files before the simulation starts, and stops
+with an error that names the bad 5-mers.
+
+To export a model from [shazam](https://shazam.readthedocs.io/en/stable/) in R
+(`model` is a `TargetingModel`, for example from `createTargetingModel`):
+
+```r
+write.csv(data.frame(Fivemer = names(model@mutability), Mutability = model@mutability),
+          "my_mutability.csv", row.names = FALSE)
+substitution <- t(model@substitution)
+write.csv(data.frame(Fivemer = rownames(substitution), substitution),
+          "my_substitution.csv", row.names = FALSE)
 ```
 
 ## Internal node (ancestral) sequences
@@ -346,6 +422,42 @@ Available arguments:
         <td>-a</td>
         <td>1000</td>
         <td>amount of antigen</td>
+    </tr>
+    <tr>
+        <td>--single-chain</td>
+        <td></td>
+        <td></td>
+        <td>if provided, simulates only the heavy chain of each naive pair (with the usual mutation model and selection)</td>
+    </tr>
+    <tr>
+        <td>--mutability</td>
+        <td></td>
+        <td>bundled S5F</td>
+        <td>path to a 5-mer mutability file for both chains</td>
+    </tr>
+    <tr>
+        <td>--substitution</td>
+        <td></td>
+        <td>bundled S5F</td>
+        <td>path to a 5-mer substitution file for both chains</td>
+    </tr>
+    <tr>
+        <td>--mutability-heavy, --mutability-light</td>
+        <td></td>
+        <td>bundled S5F</td>
+        <td>path to a 5-mer mutability file for one chain (used instead of --mutability for that chain)</td>
+    </tr>
+    <tr>
+        <td>--substitution-heavy, --substitution-light</td>
+        <td></td>
+        <td>bundled S5F</td>
+        <td>path to a 5-mer substitution file for one chain (used instead of --substitution for that chain)</td>
+    </tr>
+    <tr>
+        <td>--max-children</td>
+        <td></td>
+        <td>100</td>
+        <td>maximum number of children that one GC cell can have in one generation. Antigen above this limit is not used. This value also sets the <code>number_of_cells_with_N_children</code> columns in <code>population_data.csv</code></td>
     </tr>
     <tr>
         <td>--heavy-shm</td>

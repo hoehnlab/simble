@@ -91,6 +91,24 @@ def add_germline_lengths(table, derive):
         table[length] = table[end] - table[start] + 1
 
 def create_naive_table(heavy_file, light_file, join_id, keep_cols=None, keep_from=None):
+    """Makes a simble naive table from AIRR tsv files.
+
+    Args:
+        heavy_file (str): The path to the heavy chain AIRR tsv file.
+        light_file (str or None): The path to the light chain AIRR tsv file.
+            If None, the table has only heavy chain columns (for a single
+            chain simulation).
+        join_id (str): The column to join the heavy and light tables on. For a
+            heavy chain only table, this column is kept if it is in the file,
+            but it is not required.
+        keep_cols (list, optional): More columns to keep.
+        keep_from (str, optional): "heavy" or "light", the table to keep
+            keep_cols from.
+    Returns:
+        pd.DataFrame: The naive table.
+    """
+    if light_file is None:
+        return _create_heavy_only_naive_table(heavy_file, join_id, keep_cols, keep_from)
     # CGJ
     use_cols = FIELDS_NEEDED_AS_INPUT + AIRR_FIELDS_TO_KEEP + [join_id]
     use_cols_heavy = use_cols
@@ -113,20 +131,56 @@ def create_naive_table(heavy_file, light_file, join_id, keep_cols=None, keep_fro
     heavy = heavy[heavy['productive'] == True]
     light = light[light['productive'] == True]
 
-    def rename_columns(type):
-        columns = {x:f"{type}_{x}" for x in AIRR_FIELDS_TO_KEEP}
-
-        columns["sequence"] = f"{type}_sequence"
-        columns["sequence_alignment"] = f"{type}_sequence_alignment"
-        columns["cdr3"] = f"{type}_cdr3"
-
-        return columns
-
-    heavy = heavy.rename(columns=rename_columns("heavy"))
-    light = light.rename(columns=rename_columns("light"))
+    heavy = heavy.rename(columns=_rename_columns("heavy"))
+    light = light.rename(columns=_rename_columns("light"))
     merged = pd.merge(heavy, light, on=join_id)
 
     return merged
+
+
+def _rename_columns(chain):
+    """Returns the mapping from AIRR column names to simble's names for one chain."""
+    columns = {x:f"{chain}_{x}" for x in AIRR_FIELDS_TO_KEEP}
+
+    columns["sequence"] = f"{chain}_sequence"
+    columns["sequence_alignment"] = f"{chain}_sequence_alignment"
+    columns["cdr3"] = f"{chain}_cdr3"
+
+    return columns
+
+
+def _create_heavy_only_naive_table(heavy_file, join_id, keep_cols=None, keep_from=None):
+    """Makes a naive table with only heavy chain columns, for a single chain simulation.
+
+    The columns have the same names as the heavy chain columns of a paired
+    table. The join column is kept if it is in the file.
+
+    Args:
+        heavy_file (str): The path to the heavy chain AIRR tsv file.
+        join_id (str): The join column of a paired table. It is kept if present.
+        keep_cols (list, optional): More columns to keep from the heavy table.
+        keep_from (str, optional): Must be "heavy" (or None) if keep_cols is given.
+    Returns:
+        pd.DataFrame: The naive table.
+    Raises:
+        ValueError: If columns are to be kept from a light table.
+    """
+    if keep_cols and keep_from == "light":
+        raise ValueError("cannot keep columns from the light table without a light table")
+    available = set(pd.read_csv(heavy_file, sep='\t', header=0, nrows=0).columns)
+    use_cols = FIELDS_NEEDED_AS_INPUT + AIRR_FIELDS_TO_KEEP
+    if join_id in available:
+        use_cols = use_cols + [join_id]
+    if keep_cols:
+        use_cols = use_cols + [x for x in keep_cols if x not in use_cols]
+    use_cols, derive = resolve_germline_lengths(heavy_file, use_cols)
+    heavy = pd.read_csv(
+        heavy_file, sep='\t', header=0, usecols=use_cols,
+        converters={"productive": is_productive}
+        )
+    add_germline_lengths(heavy, derive)
+    heavy = heavy[heavy['productive'] == True]  # pylint: disable=singleton-comparison
+    return heavy.rename(columns=_rename_columns("heavy")).reset_index(drop=True)
 
 def main():
     parser = argparse.ArgumentParser(
@@ -145,9 +199,13 @@ def main():
                          help="path to heavy chain AIRR tsv file", 
                          metavar="FILE", 
                          type=str)
-    parser.add_argument("--light", 
-                         dest="light", 
-                         help="path to light chain AIRR tsv file", 
+    parser.add_argument("--light",
+                         dest="light",
+                         help=(
+                             "path to light chain AIRR tsv file. If not given, the "
+                             "output has only heavy chain columns, for use with "
+                             "simble --single-chain"
+                             ),
                          metavar="FILE", 
                          type=str)
     # CGJ
@@ -172,6 +230,8 @@ def main():
                          type=str)
 
     args = parser.parse_args()
+    if args.heavy is None:
+        parser.error("--heavy is required")
     naive = create_naive_table(args.heavy, args.light, args.id, args.keep_cols, args.keep_from)
     naive.to_csv(args.out, index=False)
 

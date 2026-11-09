@@ -100,6 +100,22 @@ class Settings(Encodable):
         MEMORY_SAVE (bool): Whether to save memory during the simulation.
         KEEP_FULL_TREE (bool): Whether to keep the full tree of cells.
         QUIET (bool): Whether to suppress output.
+        CHAINS (str): Which chains each cell has. "paired" (the default) for
+            a heavy and a light chain, or "heavy" for only a heavy chain (a
+            single chain simulation). A uniform simulation always has only a
+            heavy chain, whatever this value is.
+        MUTABILITY_HEAVY_FILE (str): Path to a 5-mer mutability file for the
+            heavy chain, or None to use the bundled S5F file.
+        SUBSTITUTION_HEAVY_FILE (str): Path to a 5-mer substitution file for
+            the heavy chain, or None to use the bundled S5F file.
+        MUTABILITY_LIGHT_FILE (str): Path to a 5-mer mutability file for the
+            light chain, or None to use the bundled S5F file.
+        SUBSTITUTION_LIGHT_FILE (str): Path to a 5-mer substitution file for
+            the light chain, or None to use the bundled S5F file.
+        MAX_CHILDREN (int): The maximum number of children that one GC cell
+            can have in one generation. Antigen that a cell gets above this
+            limit is not used. This value also sets the
+            number_of_cells_with_N_children columns in population_data.csv.
     """
     # pylint: disable=invalid-name
 
@@ -155,6 +171,12 @@ class Settings(Encodable):
         self.KEEP_FULL_TREE = False
         self.QUIET = False
         self.SEQUENCE_LENGTH = 370 # default for uniform seqs, avg heavy len
+        self.MAX_CHILDREN = 100
+        self.CHAINS = "paired"
+        self.MUTABILITY_HEAVY_FILE = None
+        self.SUBSTITUTION_HEAVY_FILE = None
+        self.MUTABILITY_LIGHT_FILE = None
+        self.SUBSTITUTION_LIGHT_FILE = None
         self._SELECTION = True
 
     @property
@@ -196,6 +218,22 @@ class Settings(Encodable):
             "ignoring light chain"))
             self.LIGHT_SHM_PER_SITE = 0
         self._UNIFORM = value
+
+    @property
+    def SINGLE_CHAIN(self):
+        """Returns whether this is a single chain simulation (heavy chain only).
+
+        A uniform simulation also has only a heavy chain, but it does not use
+        this setting: it keeps its own handling of the light chain, so this is
+        False for a uniform simulation unless CHAINS is "heavy".
+        """
+        return self.CHAINS == "heavy"
+
+    @property
+    def ACTIVE_CHAINS(self):
+        """Returns the chains that the naive and target inputs must have, as a
+        list of "heavy" and "light"."""
+        return ["heavy"] if self.SINGLE_CHAIN else ["heavy", "light"]
 
     @property
     def END_TIME(self):
